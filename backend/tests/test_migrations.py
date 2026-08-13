@@ -51,6 +51,10 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
             "campaign_selections",
             "campaign_overrides",
             "outreach_decisions",
+            "chat_sessions",
+            "chat_messages",
+            "chat_tool_audits",
+            "chat_staged_actions",
         } <= tables
     finally:
         engine.dispose()

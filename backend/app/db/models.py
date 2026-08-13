@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
     event,
@@ -474,3 +475,121 @@ def prevent_outreach_decision_update(_mapper: Any, _connection: Any, _target: Ou
 @event.listens_for(OutreachDecision, "before_delete")
 def prevent_outreach_decision_delete(_mapper: Any, _connection: Any, _target: OutreachDecision) -> None:
     raise ValueError("Outreach decisions are immutable")
+
+
+class ChatSession(Base):
+    """Bounded conversation metadata and optional customer/campaign context."""
+
+    __tablename__ = "chat_sessions"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'closed')", name="ck_chat_session_status"),
+        Index("ix_chat_sessions_updated_at", "updated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="active", server_default="active")
+    context_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    context_campaign_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True
+    )
+    context: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
+    )
+    staged_actions: Mapped[list["ChatStagedAction"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan", order_by="ChatStagedAction.created_at"
+    )
+    tool_audits: Mapped[list["ChatToolAudit"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan", order_by="ChatToolAudit.created_at"
+    )
+
+
+class ChatMessage(Base):
+    """One user/assistant/tool event retained for bounded conversation history."""
+
+    __tablename__ = "chat_messages"
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'assistant', 'tool', 'system')", name="ck_chat_message_role"),
+        CheckConstraint("length(content) BETWEEN 1 AND 20000", name="ck_chat_message_content_length"),
+        Index("ix_chat_messages_session_created_at", "session_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(12), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="message", server_default="message")
+    provider_response_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    session: Mapped[ChatSession] = relationship(back_populates="messages")
+
+
+class ChatToolAudit(Base):
+    """Append-only redacted metadata for each allowlisted tool invocation."""
+
+    __tablename__ = "chat_tool_audits"
+    __table_args__ = (Index("ix_chat_tool_audits_session_created_at", "session_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    tool_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    session: Mapped[ChatSession] = relationship(back_populates="tool_audits")
+
+
+class ChatStagedAction(Base):
+    """One short-lived, one-time customer mutation awaiting human confirmation."""
+
+    __tablename__ = "chat_staged_actions"
+    __table_args__ = (
+        CheckConstraint("action_type IN ('create', 'update')", name="ck_chat_action_type"),
+        CheckConstraint("status IN ('pending', 'consumed', 'cancelled', 'expired')", name="ck_chat_action_status"),
+        Index("ix_chat_staged_actions_session_created_at", "session_id", "created_at"),
+        Index("ix_chat_staged_actions_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    customer_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    preview: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    action_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    confirmation_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expected_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="pending", server_default="pending")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    session: Mapped[ChatSession] = relationship(back_populates="staged_actions")
+
+
+@event.listens_for(ChatToolAudit, "before_update")
+def prevent_chat_tool_audit_update(_mapper: Any, _connection: Any, _target: ChatToolAudit) -> None:
+    raise ValueError("Chat tool audit records are immutable")
+
+
+@event.listens_for(ChatToolAudit, "before_delete")
+def prevent_chat_tool_audit_delete(_mapper: Any, _connection: Any, _target: ChatToolAudit) -> None:
+    raise ValueError("Chat tool audit records are immutable")

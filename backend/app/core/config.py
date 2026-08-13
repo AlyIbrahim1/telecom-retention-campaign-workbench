@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     import_max_rows: int = Field(default=10_000, ge=1)
     import_max_columns: int = Field(default=30, ge=1)
     import_chunk_size: int = Field(default=500, ge=1)
+    # Chat is optional in the local pilot.  An absent key keeps the core API
+    # usable and makes chat return a safe ``ai_unavailable`` state.
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-4.1-mini"
+    chat_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    chat_max_output_tokens: int = Field(default=600, ge=64, le=4000)
+    chat_context_messages: int = Field(default=20, ge=1, le=50)
+    chat_confirmation_ttl_seconds: int = Field(default=600, ge=30, le=3600)
 
     @field_validator("database_url")
     @classmethod

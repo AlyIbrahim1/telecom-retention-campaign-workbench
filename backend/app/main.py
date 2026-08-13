@@ -13,6 +13,8 @@ from backend.app.api.health import router as health_router
 from backend.app.api.customers import router as customer_router
 from backend.app.api.imports import router as imports_router
 from backend.app.api.campaigns import router as campaigns_router
+from backend.app.api.chat import router as chat_router
+from backend.app.chat.provider import OpenAIResponsesProvider
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.errors import (
     http_exception_handler,
@@ -31,6 +33,7 @@ def create_app(
     database_check: Callable[[], bool] | None = None,
     model_loader: TrustedModelLoader | None = None,
     session_factory: Any | None = None,
+    chat_provider: Any | None = None,
 ) -> FastAPI:
     """Create the API with injectable settings and readiness for small tests."""
 
@@ -43,6 +46,12 @@ def create_app(
         app.state.model_ready = False
         app.state.model_status = "not_configured"
         app.state.model_error = None
+        app.state.chat_provider = chat_provider or OpenAIResponsesProvider(
+            settings.openai_api_key,
+            settings.openai_model,
+            settings.chat_timeout_seconds,
+            settings.chat_max_output_tokens,
+        )
         if database_check is None:
             engine = create_database_engine(settings.database_url.get_secret_value())
             app.state.database_check = lambda: database_is_ready(engine)
@@ -84,6 +93,7 @@ def create_app(
     app.state.logger = logger
     app.state.model_service = None
     app.state.session_factory = session_factory
+    app.state.chat_provider = chat_provider
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)
@@ -91,6 +101,7 @@ def create_app(
     app.include_router(customer_router)
     app.include_router(imports_router)
     app.include_router(campaigns_router)
+    app.include_router(chat_router)
 
     app.add_middleware(
         CORSMiddleware,
@@ -102,6 +113,7 @@ def create_app(
             "Content-Type",
             "If-Match",
             "Idempotency-Key",
+            "X-Confirmation-Token",
             "X-Correlation-ID",
         ],
     )
