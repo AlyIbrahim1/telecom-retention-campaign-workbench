@@ -26,8 +26,9 @@ preview and require a one-time confirmation token plus idempotency key; no
 campaign confirmation or external outreach is available. Without
 `OPENAI_API_KEY`, chat reports a safe unavailable state while the rest of the
 workspace remains usable.
- adds a synthetic demo seed and a reproducible local handoff walkthrough;
-see the [pilot operator guide](pilot-operator-guide.md) for the complete
+ adds a reproducible local handoff walkthrough. The local database seed
+uses the tracked IBM Telco CSV through the bounded import API; see the
+[pilot operator guide](pilot-operator-guide.md) for the complete
 create-to-chat path, recovery steps, known limitations, and version convention.
 
 ## Prerequisites

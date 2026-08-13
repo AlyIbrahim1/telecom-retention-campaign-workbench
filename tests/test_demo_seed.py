@@ -1,55 +1,57 @@
-""" evidence for the synthetic local demo seed."""
+""" evidence for seeding from the tracked IBM Telco CSV."""
 
 from __future__ import annotations
 
 import csv
-from pathlib import Path
+import io
 
 from scripts import seed_demo
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def test_seed_file_is_canonical_synthetic_data() -> None:
+def test_seed_source_is_the_tracked_csv_and_excludes_training_target() -> None:
     rows = seed_demo.load_rows()
-    assert len(rows) >= 5
-    assert all(row["customer_id"].startswith("DEMO-") for row in rows)
-    assert len({row["customer_id"] for row in rows}) == len(rows)
-    assert all(isinstance(row["tenure"], int) for row in rows)
-    assert all(isinstance(row["monthly_charges"], float) for row in rows)
-    assert all(isinstance(row["total_charges"], float) for row in rows)
 
-    with (ROOT / "WA_Fn-UseC_-Telco-Customer-Churn.csv").open(
-        encoding="utf-8-sig", newline=""
-    ) as handle:
-        training_ids = {row["customerID"] for row in csv.DictReader(handle)}
-    assert not training_ids.intersection(row["customer_id"] for row in rows)
+    assert len(rows) == 7043
+    assert tuple(rows[0]) == seed_demo.IMPORT_FIELDS
+    assert "Churn" not in rows[0]
+    assert rows[0]["customerID"] == "7590-VHVEG"
+    assert all(row["customerID"] for row in rows)
+
+    reader = csv.DictReader(io.StringIO(seed_demo.csv_bytes(rows).decode("utf-8")))
+    assert tuple(reader.fieldnames or ()) == seed_demo.IMPORT_FIELDS
+    assert len(list(reader)) == 7043
 
 
-def test_seed_is_idempotent_and_skips_rows_created_by_another_run(monkeypatch) -> None:
-    existing = {"DEMO-001"}
+def test_seed_is_idempotent_and_uploads_only_missing_rows(monkeypatch) -> None:
+    rows = seed_demo.load_rows()
+    calls: list[tuple[str, str]] = []
+    state = {"existing": set()}
 
     def fake_request_json(base_url, method, path, **kwargs):
-        del base_url
+        del base_url, kwargs
+        calls.append((method, path))
         if path == "/health/ready":
             return 200, {"ready": True}
-        customer_id = path.rsplit("/", 1)[-1]
-        if method == "GET":
-            if customer_id in existing:
-                return 200, {"customer": {"customer": {"customer_id": customer_id}}}
-            raise seed_demo.ApiError(404, {"code": "customer_not_found"})
-        assert method == "POST"
-        # The POST path does not include the ID; inspect the payload as the API
-        # would, then retain it for the next idempotent invocation.
-        customer_id = kwargs["payload"]["customer_id"]
-        existing.add(customer_id)
-        return 201, {"customer": {"customer": {"customer_id": customer_id}}}
+        assert method == "GET"
+        ids = sorted(state["existing"])
+        return 200, {"items": [{"customer_id": value} for value in ids], "total": len(ids)}
+
+    def fake_upload(base_url, path, content, **kwargs):
+        del base_url, path, kwargs
+        imported = list(csv.DictReader(io.StringIO(content.decode("utf-8"))))
+        state["existing"].update(row["customerID"] for row in imported)
+        return 202, {"status": "completed", "succeeded_rows": len(imported), "invalid_rows": 0, "failed_rows": 0}
 
     monkeypatch.setattr(seed_demo, "request_json", fake_request_json)
+    monkeypatch.setattr(seed_demo, "request_csv_upload", fake_upload)
+
     first = seed_demo.seed(wait_seconds=1)
-    assert first.created == 7
-    assert first.skipped == 1
+    assert first.created == len(rows)
+    assert first.skipped == 0
+    assert any(path == "/api/v1/customers?page=1&page_size=100&sort=customer_id&order=asc" for _, path in calls)
+
+    calls.clear()
     second = seed_demo.seed(wait_seconds=1)
     assert second.created == 0
-    assert second.skipped == 8
+    assert second.skipped == len(rows)
+    assert not any(path.startswith("/api/v1/imports?") for _, path in calls)
