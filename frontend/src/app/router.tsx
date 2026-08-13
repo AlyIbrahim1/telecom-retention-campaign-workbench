@@ -10,8 +10,9 @@ import { CustomerFormPage } from "../pages/CustomerFormPage";
 import { ImportsPage } from "../pages/ImportsPage";
 import { ImportNewPage } from "../pages/ImportNewPage";
 import { ImportDetailPage } from "../pages/ImportDetailPage";
-
-const unavailableCampaignTools = "Campaign tools arrive in a unavailable feature.";
+import { CampaignsPage } from "../pages/CampaignsPage";
+import { CampaignNewPage } from "../pages/CampaignNewPage";
+import { CampaignDetailPage } from "../pages/CampaignDetailPage";
 
 export const routes: RouteObject[] = [
   {
@@ -61,15 +62,15 @@ export const routes: RouteObject[] = [
           },
           {
             path: "campaigns",
-            element: <PlaceholderPage eyebrow="Campaigns" title="Campaigns" description={unavailableCampaignTools} />,
+            element: <CampaignsPage />,
           },
           {
             path: "campaigns/new",
-            element: <PlaceholderPage eyebrow="Campaigns" title="New campaign" description={unavailableCampaignTools} />,
+            element: <CampaignNewPage />,
           },
           {
             path: "campaigns/:campaignId",
-            element: <PlaceholderPage eyebrow="Campaigns" title="Campaign details" description={unavailableCampaignTools} />,
+            element: <CampaignDetailPage />,
           },
         ],
       },
