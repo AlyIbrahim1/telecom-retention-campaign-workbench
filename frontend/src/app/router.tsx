@@ -7,8 +7,10 @@ import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { CustomersPage } from "../pages/CustomersPage";
 import { CustomerDetailPage } from "../pages/CustomerDetailPage";
 import { CustomerFormPage } from "../pages/CustomerFormPage";
+import { ImportsPage } from "../pages/ImportsPage";
+import { ImportNewPage } from "../pages/ImportNewPage";
+import { ImportDetailPage } from "../pages/ImportDetailPage";
 
-const unavailableImportTools = "Import tools arrive in a unavailable feature.";
 const unavailableCampaignTools = "Campaign tools arrive in a unavailable feature.";
 
 export const routes: RouteObject[] = [
@@ -47,15 +49,15 @@ export const routes: RouteObject[] = [
           },
           {
             path: "imports",
-            element: <PlaceholderPage eyebrow="Data operations" title="Imports" description={unavailableImportTools} />,
+            element: <ImportsPage />,
           },
           {
             path: "imports/new",
-            element: <PlaceholderPage eyebrow="Data operations" title="New import" description={unavailableImportTools} />,
+            element: <ImportNewPage />,
           },
           {
             path: "imports/:jobId",
-            element: <PlaceholderPage eyebrow="Data operations" title="Import details" description={unavailableImportTools} />,
+            element: <ImportDetailPage />,
           },
           {
             path: "campaigns",
