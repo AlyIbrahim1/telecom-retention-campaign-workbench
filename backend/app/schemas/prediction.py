@@ -95,4 +95,37 @@ class CustomerMetadataResponse(BaseModel):
     fields: dict[str, dict]
 
 
+class CustomerListItemResponse(BaseModel):
+    """Bounded row used by the customer dashboard table.
+
+    The list deliberately contains only table columns and the latest score;
+    the complete 19-field customer input is fetched by the detail endpoint.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Z0-9_-]+$")
+    contract: Literal["Month-to-month", "One year", "Two year"]
+    internet_service: Literal["DSL", "Fiber optic", "No"]
+    tenure: int = Field(ge=0)
+    monthly_charges: float = Field(ge=0)
+    total_charges: float = Field(ge=0)
+    risk_score: float | None = Field(default=None, ge=0, le=1)
+    recommended_for_review: bool | None = None
+    last_scored_at: datetime | None = None
+    current_prediction: PredictionResponse | None = None
+    outreach_status: str | None = None
+    is_active: bool
+    version: int = Field(ge=1)
+
+
+class CustomerListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[CustomerListItemResponse]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: Literal[25, 50, 100]
+
+
 CustomerDetailResponse.model_rebuild()

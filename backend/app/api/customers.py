@@ -11,12 +11,12 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Body, Header, Request
+from fastapi import APIRouter, Body, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,8 @@ from backend.app.schemas.customer import (
 from backend.app.schemas.prediction import (
     AuditEventResponse,
     CustomerDetailResponse,
+    CustomerListItemResponse,
+    CustomerListResponse,
     CustomerMetadataResponse,
     CustomerPreviewResponse,
     CustomerRecordResponse,
@@ -168,6 +170,48 @@ def _customer_record(
     )
 
 
+def _latest_prediction_subquery():
+    """Return one latest prediction row per customer for bounded list reads."""
+
+    return (
+        select(
+            Prediction.id.label("prediction_id"),
+            Prediction.customer_uuid.label("prediction_customer_uuid"),
+            Prediction.customer_id.label("prediction_customer_id"),
+            Prediction.risk_score.label("prediction_risk_score"),
+            Prediction.recommended_for_review.label("prediction_recommended"),
+            Prediction.model_version.label("prediction_model_version"),
+            Prediction.threshold.label("prediction_threshold"),
+            Prediction.threshold_policy_version.label("prediction_threshold_policy_version"),
+            Prediction.scored_at.label("prediction_scored_at"),
+            Prediction.warnings.label("prediction_warnings"),
+            func.row_number()
+            .over(
+                partition_by=Prediction.customer_uuid,
+                order_by=(Prediction.scored_at.desc(), Prediction.id.desc()),
+            )
+            .label("prediction_rank"),
+        )
+        .subquery("latest_prediction")
+    )
+
+
+def _list_prediction(row: Mapping[str, Any]) -> PredictionResponse | None:
+    if row["prediction_id"] is None:
+        return None
+    warnings = [ValidationWarning(**warning) for warning in (row["prediction_warnings"] or [])]
+    return PredictionResponse(
+        customer_id=row["prediction_customer_id"],
+        risk_score=float(row["prediction_risk_score"]),
+        recommended_for_review=bool(row["prediction_recommended"]),
+        model_version=row["prediction_model_version"],
+        threshold=float(row["prediction_threshold"]),
+        threshold_policy_version=row["prediction_threshold_policy_version"],
+        scored_at=row["prediction_scored_at"],
+        warnings=warnings,
+    )
+
+
 def _add_prediction(
     session: Session,
     customer: Customer,
@@ -292,6 +336,148 @@ async def customer_metadata(request: Request):
         threshold_policy_version=service.metadata.threshold_policy_version,
         fields=CustomerInput.model_json_schema().get("properties", {}),
     )
+
+
+@router.get("/customers", response_model=CustomerListResponse)
+async def list_customers(
+    request: Request,
+    q: str | None = Query(default=None, description="Partial or exact customer ID search."),
+    page: int = Query(default=1, ge=1, le=10_000),
+    page_size: int = Query(default=25, ge=25, le=100),
+    recommended: bool | None = Query(default=None),
+    score_freshness: Literal["fresh", "missing"] | None = Query(default=None),
+    outreach_status: Literal["not_recorded", "none"] | None = Query(default=None),
+    contract: Literal["Month-to-month", "One year", "Two year"] | None = Query(default=None),
+    internet_service: Literal["DSL", "Fiber optic", "No"] | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    sort: Literal["customer_id", "risk_score", "monthly_charges", "total_charges", "last_scored_at"] = Query(
+        default="last_scored_at"
+    ),
+    order: Literal["asc", "desc"] = Query(default="desc"),
+):
+    """Return a paginated, bounded customer table projection.
+
+    Campaign/outreach tables arrive in a later release. Until then an outreach
+    filter of ``not_recorded``/``none`` means the nullable pilot field is
+    empty for every customer.
+    """
+
+    session = _session(request)
+    if session is None:
+        return _service_unavailable(request)
+
+    if page_size not in {25, 50, 100}:
+        return problem_response(
+            request,
+            status=422,
+            code="validation_failed",
+            title="Request validation failed",
+            detail="page_size must be 25, 50, or 100.",
+            errors=[
+                {
+                    "field": "page_size",
+                    "code": "invalid_page_size",
+                    "message": "Choose 25, 50, or 100 rows per page.",
+                }
+            ],
+        )
+
+    latest = _latest_prediction_subquery()
+    latest_join = (latest.c.prediction_customer_uuid == Customer.id) & (
+        latest.c.prediction_rank == 1
+    )
+    filters = []
+    if q and q.strip():
+        # IDs are canonical uppercase; escaping keeps user-entered '%'/'_' as
+        # literal search text rather than turning them into wildcards.
+        search = q.strip().upper().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        filters.append(Customer.customer_id.ilike(f"%{search}%", escape="\\"))
+    if recommended is not None:
+        filters.append(latest.c.prediction_recommended == recommended)
+    if score_freshness == "fresh":
+        filters.append(latest.c.prediction_id.is_not(None))
+    elif score_freshness == "missing":
+        filters.append(latest.c.prediction_id.is_(None))
+    if contract is not None:
+        filters.append(Customer.contract == contract)
+    if internet_service is not None:
+        filters.append(Customer.internet_service == internet_service)
+    if is_active is not None:
+        filters.append(Customer.is_active == is_active)
+    # No campaign/outreach table exists in . Both documented values
+    # therefore select the currently unrecorded (NULL) state.
+    # ``outreach_status`` is accepted for forward-compatible list links; the
+    # current pilot has no outreach rows, so every customer is unrecorded.
+
+    base = select(Customer.id).outerjoin(latest, latest_join)
+    if filters:
+        base = base.where(*filters)
+    try:
+        total = int(session.scalar(select(func.count()).select_from(base.subquery())) or 0)
+
+        selected_columns = (
+            Customer.customer_id,
+            Customer.contract,
+            Customer.internet_service,
+            Customer.tenure,
+            Customer.monthly_charges,
+            Customer.total_charges,
+            Customer.is_active,
+            Customer.version,
+            latest.c.prediction_id,
+            latest.c.prediction_customer_id,
+            latest.c.prediction_risk_score,
+            latest.c.prediction_recommended,
+            latest.c.prediction_model_version,
+            latest.c.prediction_threshold,
+            latest.c.prediction_threshold_policy_version,
+            latest.c.prediction_scored_at,
+            latest.c.prediction_warnings,
+        )
+        query = select(*selected_columns).outerjoin(latest, latest_join)
+        if filters:
+            query = query.where(*filters)
+        sort_columns = {
+            "customer_id": Customer.customer_id,
+            "risk_score": latest.c.prediction_risk_score,
+            "monthly_charges": Customer.monthly_charges,
+            "total_charges": Customer.total_charges,
+            "last_scored_at": latest.c.prediction_scored_at,
+        }
+        sort_column = sort_columns[sort]
+        sort_expression = sort_column.desc().nullslast() if order == "desc" else sort_column.asc().nullsfirst()
+        rows = session.execute(
+            query.order_by(sort_expression, Customer.customer_id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).mappings()
+        items = []
+        for row in rows:
+            prediction = _list_prediction(row)
+            items.append(
+                CustomerListItemResponse(
+                    customer_id=row["customer_id"],
+                    contract=row["contract"],
+                    internet_service=row["internet_service"],
+                    tenure=row["tenure"],
+                    monthly_charges=float(row["monthly_charges"]),
+                    total_charges=float(row["total_charges"]),
+                    risk_score=float(row["prediction_risk_score"])
+                    if row["prediction_risk_score"] is not None
+                    else None,
+                    recommended_for_review=row["prediction_recommended"],
+                    last_scored_at=row["prediction_scored_at"],
+                    current_prediction=prediction,
+                    outreach_status=None,
+                    is_active=row["is_active"],
+                    version=row["version"],
+                )
+            )
+        return CustomerListResponse(items=items, total=total, page=page, page_size=page_size)
+    except SQLAlchemyError:
+        return _service_unavailable(request)
+    finally:
+        session.close()
 
 
 @router.post("/customers/preview", response_model=CustomerPreviewResponse)
