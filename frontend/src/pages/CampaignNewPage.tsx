@@ -23,6 +23,7 @@ export function CampaignNewPage() {
   const [capacity, setCapacity] = useState("25");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [creationKey, setCreationKey] = useState<string | null>(null);
 
   function validate(): string {
     const trimmed = name.trim();
@@ -41,8 +42,11 @@ export function CampaignNewPage() {
     }
     setBusy(true);
     setError("");
+    const key = creationKey ?? idempotencyKey();
+    setCreationKey(key);
     try {
-      const campaign = await createCampaign({ name: name.trim(), capacity: Number(capacity) }, idempotencyKey());
+      const campaign = await createCampaign({ name: name.trim(), capacity: Number(capacity) }, key);
+      setCreationKey(null);
       navigate(`/campaigns/${encodeURIComponent(campaign.campaign_id)}`);
     } catch (reason) {
       setError(actionMessage(reason));

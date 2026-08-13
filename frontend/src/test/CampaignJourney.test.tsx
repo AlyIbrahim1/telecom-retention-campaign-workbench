@@ -48,8 +48,8 @@ const optimized = {
       customer_id: "CUST-002",
       rank: 2,
       risk_score: 0.32,
-      recommended: false,
-      recommended_for_review: false,
+      recommended: true,
+      recommended_for_review: true,
       selected: false,
       monthly_charges: 60,
       total_charges: 100,
@@ -62,9 +62,9 @@ const optimized = {
     },
   ],
   eligible_count: 2,
-  recommended_count: 1,
+  recommended_count: 2,
   selected_count: 0,
-  unused_capacity: 1,
+  unused_capacity: 0,
   optimization: {
     run_id: "run-001",
     formula_version: "risk-spend-v1",
@@ -72,8 +72,8 @@ const optimized = {
     historical_weight: 0.4,
     reference_population_timestamp: "2026-08-13T09:00:00Z",
     eligible_count: 2,
-    recommended_count: 1,
-    unused_capacity: 1,
+    recommended_count: 2,
+    unused_capacity: 0,
   },
 };
 
@@ -123,10 +123,10 @@ describe("campaign browser journeys", () => {
     await user.click(screen.getByRole("button", { name: "Exclude" }));
     await user.type(screen.getByLabelText(/Reason/), "Existing service issue");
     await user.click(screen.getByRole("button", { name: "Record override" }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/overrides$/), expect.objectContaining({ method: "POST" })));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/overrides$/), expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "If-Match": "1" }) })));
     const confirmation = screen.getByLabelText(/I reviewed the ranked recommendations/);
     await user.click(confirmation);
     await user.click(screen.getByRole("button", { name: "Confirm campaign" }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/confirm$/), expect.objectContaining({ method: "POST" })));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/confirm$/), expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "If-Match": "1", "Idempotency-Key": expect.any(String) }) })));
   });
 });

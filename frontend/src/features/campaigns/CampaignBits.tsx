@@ -15,12 +15,31 @@ export function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
   return <span className={`status ${campaignStatusTone(status)}`}><span aria-hidden="true">{status === "confirmed" ? "●" : status === "archived" ? "!" : status === "optimized" ? "◆" : "○"}</span>{label}</span>;
 }
 
+export function proposedCampaignCustomerIds(campaign: Campaign): Set<string> {
+  const ids = new Set(
+    campaign.recommendations
+      .filter((item) => (item.recommended || item.selection_state === "override" || item.selected) && item.selection_state !== "excluded")
+      .map((item) => item.customer_id),
+  );
+  const latestOverrides = new Map(campaign.overrides.map((override) => [override.customer_id, override]));
+  for (const override of latestOverrides.values()) {
+    if (override.action === "exclude") ids.delete(override.customer_id);
+    else ids.add(override.customer_id);
+  }
+  for (const override of latestOverrides.values()) {
+    if (override.action === "include" && override.replacement_customer_id) ids.delete(override.replacement_customer_id);
+  }
+  return ids;
+}
+
+export function proposedCampaignSelectionCount(campaign: Campaign): number {
+  return campaign.recommendations.length ? proposedCampaignCustomerIds(campaign).size : campaign.recommended_count;
+}
+
 export function CampaignCapacityMeter({ campaign, compact = false }: { campaign: Campaign; compact?: boolean }) {
-  const proposed = campaign.recommendations.filter((item) =>
-    (item.recommended || item.selection_state === "override" || item.selected) && item.selection_state !== "excluded",
-  ).length;
+  const proposed = proposedCampaignSelectionCount(campaign);
   const humanConfirmed = campaign.status === "confirmed" || campaign.status === "archived";
-  const used = Math.min(campaign.capacity, Math.max(0, humanConfirmed ? campaign.selected_count : proposed || campaign.recommended_count));
+  const used = Math.min(campaign.capacity, Math.max(0, humanConfirmed ? campaign.selected_count : proposed));
   const percent = campaign.capacity ? Math.round((used / campaign.capacity) * 100) : 0;
   const unused = Math.max(0, campaign.capacity - used);
   return (

@@ -23,6 +23,8 @@ import {
   CampaignStatusBadge,
   RecommendationRowValues,
   formatPriority,
+  proposedCampaignCustomerIds,
+  proposedCampaignSelectionCount,
 } from "../features/campaigns/CampaignBits";
 import "../features/campaigns/campaigns.css";
 
@@ -59,6 +61,7 @@ export function CampaignDetailPage() {
   const [overrideReason, setOverrideReason] = useState("");
   const [replacementCustomerId, setReplacementCustomerId] = useState("");
   const [confirmChecked, setConfirmChecked] = useState(false);
+  const [confirmationKey, setConfirmationKey] = useState<string | null>(null);
 
   const campaignQuery = useQuery({
     queryKey: ["campaign", campaignId],
@@ -73,13 +76,13 @@ export function CampaignDetailPage() {
     setEditCapacity(String(campaignData.capacity));
   }, [campaignData, editOpen]);
 
-  const selectedRecommendations = useMemo(
-    () => campaignData?.recommendations.filter((item) => (item.selected || item.recommended || item.selection_state === "override") && item.selection_state !== "excluded") ?? [],
+  const proposedCustomerIds = useMemo(
+    () => (campaignData ? proposedCampaignCustomerIds(campaignData) : new Set<string>()),
     [campaignData],
   );
   const replacementOptions = useMemo(
-    () => selectedRecommendations.filter((item) => item.customer_id !== overrideTarget?.customerId),
-    [overrideTarget?.customerId, selectedRecommendations],
+    () => campaignData?.recommendations.filter((item) => proposedCustomerIds.has(item.customer_id) && item.customer_id !== overrideTarget?.customerId) ?? [],
+    [campaignData, overrideTarget?.customerId, proposedCustomerIds],
   );
 
   if (campaignQuery.isPending) {
@@ -94,7 +97,7 @@ export function CampaignDetailPage() {
   const canEdit = campaign.status === "draft";
   const canOptimize = campaign.status === "draft" || campaign.status === "optimized";
   const canOverride = campaign.status === "optimized";
-  const proposedSelectionCount = campaign.recommendations.filter((item) => (item.recommended || item.selected || item.selection_state === "override") && item.selection_state !== "excluded").length || campaign.recommended_count;
+  const proposedSelectionCount = proposedCampaignSelectionCount(campaign);
   const canConfirm = campaign.status === "optimized" && proposedSelectionCount <= campaign.capacity;
   const hasSelection = proposedSelectionCount > 0;
 
@@ -151,7 +154,7 @@ export function CampaignDetailPage() {
       return;
     }
     if (overrideTarget.action === "include" && proposedSelectionCount >= campaign.capacity && !replacementCustomerId) {
-      setError("Capacity is full. Choose a selected customer to replace before including this override.");
+      setError("Capacity is full. Choose a proposed customer to replace before including this override.");
       return;
     }
     setBusy("override");
@@ -194,8 +197,11 @@ export function CampaignDetailPage() {
     }
     setBusy("confirm");
     setError("");
+    const key = confirmationKey ?? idempotencyKey();
+    setConfirmationKey(key);
     try {
-      await confirmCampaign(campaign.campaign_id, idempotencyKey(), campaign.version);
+      await confirmCampaign(campaign.campaign_id, key, campaign.version);
+      setConfirmationKey(null);
       setConfirmChecked(false);
       await refresh();
     } catch (reason) {
@@ -245,10 +251,11 @@ export function CampaignDetailPage() {
       {campaign.status !== "draft" && <>
         <section className="campaign-review" aria-labelledby="campaign-review-title"><div className="section-heading"><p className="eyebrow">Ranked review</p><h2 id="campaign-review-title">Recommendations</h2><p>{campaign.recommendations.length ? `${campaign.recommendations.length} snapshot rows. Risk score, spending-derived value, and campaign priority are separate signals.` : "The optimization snapshot has no recommendation rows."}</p></div>{campaign.recommendations.length === 0 ? <div className="empty-inline"><strong>No eligible recommendations</strong><span>There is no customer row to review in this snapshot. A later optimization may produce a different result.</span></div> : <div className="table-scroll"><table className="customer-table campaign-table"><caption className="sr-only">Ranked campaign recommendations</caption><thead><tr><th scope="col">Rank</th><th scope="col">Customer</th><th scope="col">Model score</th><th scope="col">Monthly spend</th><th scope="col">Historical spend</th><th scope="col">Value index</th><th scope="col">Priority</th><th scope="col">Recommendation</th><th scope="col"><span className="sr-only">Review action</span></th></tr></thead><tbody>{campaign.recommendations.map((recommendation) => {
               const canAct = canOverride && !isTerminal(campaign);
-              return <tr key={recommendation.recommendation_id}><td data-label="Rank" className="rank-cell">#{recommendation.rank}</td><th scope="row" data-label="Customer" className="customer-cell"><Link to={`/customers/${encodeURIComponent(recommendation.customer_id)}`}>{recommendation.customer_id}</Link><span className="cell-note">{recommendation.model_version ? `Model ${recommendation.model_version}` : "Model version unavailable"}</span></th><RecommendationRowValues recommendation={recommendation} /><td data-label="Review action" className="action-cell">{canAct && recommendation.recommended && <button type="button" className="button-secondary" onClick={() => openOverride(recommendation, "exclude")}>Exclude</button>}{canAct && !recommendation.recommended && <button type="button" className="button-secondary" onClick={() => openOverride(recommendation, "include")}>Include override</button>}</td></tr>;
+              const hasActiveOverride = recommendation.override || recommendation.selection_state === "excluded" || recommendation.selection_state === "override";
+              return <tr key={recommendation.recommendation_id}><td data-label="Rank" className="rank-cell">#{recommendation.rank}</td><th scope="row" data-label="Customer" className="customer-cell"><Link to={`/customers/${encodeURIComponent(recommendation.customer_id)}`}>{recommendation.customer_id}</Link><span className="cell-note">{recommendation.model_version ? `Model ${recommendation.model_version}` : "Model version unavailable"}</span></th><RecommendationRowValues recommendation={recommendation} /><td data-label="Review action" className="action-cell">{canAct && !hasActiveOverride && recommendation.recommended && <button type="button" className="button-secondary" onClick={() => openOverride(recommendation, "exclude")}>Exclude</button>}{canAct && !hasActiveOverride && !recommendation.recommended && <button type="button" className="button-secondary" onClick={() => openOverride(recommendation, "include")}>Include override</button>}</td></tr>;
             })}</tbody></table></div>}</section>
 
-        {overrideTarget && canOverride && <form className="override-form" onSubmit={submitOverride} aria-labelledby="override-title"><div className="section-heading"><p className="eyebrow">Human override</p><h2 id="override-title">{overrideTarget.action === "include" ? "Include a below-threshold customer" : "Exclude a recommendation"}</h2><p>Customer <strong className="record-id">{overrideTarget.customerId}</strong> will be recorded with an explicit reason. This does not change the model score.</p></div>{overrideTarget.action === "include" && proposedSelectionCount >= campaign.capacity && <label htmlFor="replacement-customer">Replace a selected customer<span aria-hidden="true">*</span><select id="replacement-customer" required value={replacementCustomerId} onChange={(event) => setReplacementCustomerId(event.target.value)}><option value="">Choose one…</option>{replacementOptions.map((item) => <option key={item.customer_id} value={item.customer_id}>{item.customer_id} · priority {formatPriority(item.priority_score)}</option>)}</select></label>}<label htmlFor="override-reason">Reason <span aria-hidden="true">*</span><textarea id="override-reason" required minLength={5} maxLength={500} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain the business reason for this decision." /><small>{overrideReason.length}/500 characters · minimum 5</small></label><div className="form-actions"><button type="submit" disabled={busy !== null}>{busy === "override" ? "Recording override…" : "Record override"}</button><button type="button" className="button-secondary" onClick={() => setOverrideTarget(null)}>Cancel</button></div></form>}
+        {overrideTarget && canOverride && <form className="override-form" onSubmit={submitOverride} aria-labelledby="override-title"><div className="section-heading"><p className="eyebrow">Human override</p><h2 id="override-title">{overrideTarget.action === "include" ? "Include a below-threshold customer" : "Exclude a recommendation"}</h2><p>Customer <strong className="record-id">{overrideTarget.customerId}</strong> will be recorded with an explicit reason. This does not change the model score.</p></div>{overrideTarget.action === "include" && proposedSelectionCount >= campaign.capacity && <label htmlFor="replacement-customer">Replace a proposed customer<span aria-hidden="true">*</span><select id="replacement-customer" required value={replacementCustomerId} onChange={(event) => setReplacementCustomerId(event.target.value)}><option value="">Choose one…</option>{replacementOptions.map((item) => <option key={item.customer_id} value={item.customer_id}>{item.customer_id} · priority {formatPriority(item.priority_score)}</option>)}</select></label>}<label htmlFor="override-reason">Reason <span aria-hidden="true">*</span><textarea id="override-reason" required minLength={5} maxLength={500} value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain the business reason for this decision." /><small>{overrideReason.length}/500 characters · minimum 5</small></label><div className="form-actions"><button type="submit" disabled={busy !== null}>{busy === "override" ? "Recording override…" : "Record override"}</button><button type="button" className="button-secondary" onClick={() => setOverrideTarget(null)}>Cancel</button></div></form>}
 
         {campaign.overrides.length > 0 && <section className="campaign-overrides" aria-labelledby="campaign-overrides-title"><div className="section-heading"><p className="eyebrow">Decision history</p><h2 id="campaign-overrides-title">Overrides</h2><p>Each change keeps the customer, action, reason, and timestamp visible for review.</p></div><ul className="override-list">{campaign.overrides.map((override) => <li key={override.override_id}><div><strong>{override.action === "include" ? "Included override" : "Excluded recommendation"}</strong><span className="cell-note">{override.customer_id}</span></div><p>{override.reason}</p><div>{formatDate(override.created_at)}{canOverride && <button type="button" className="text-button" disabled={busy !== null} onClick={() => void removeOverride(override.override_id)}>Remove</button>}</div></li>)}</ul></section>}
 

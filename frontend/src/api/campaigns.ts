@@ -309,41 +309,41 @@ export async function updateCampaign(campaignId: string, payload: CampaignWriteI
   }), campaignId);
 }
 
-export async function optimizeCampaign(campaignId: string, version?: number, acknowledgeReoptimization = false): Promise<Campaign> {
+export async function optimizeCampaign(campaignId: string, version: number, acknowledgeReoptimization = false): Promise<Campaign> {
   return normalizeCampaign(await requestJson<unknown>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/optimize`, {
     method: "POST",
-    ...(version === undefined ? {} : { headers: { "If-Match": String(version) } }),
+    headers: { "If-Match": String(version) },
     body: JSON.stringify(acknowledgeReoptimization ? { acknowledge_reoptimization: true } : {}),
   }), campaignId);
 }
 
-export async function addCampaignOverride(campaignId: string, payload: CampaignOverrideInput, version?: number): Promise<Campaign> {
+export async function addCampaignOverride(campaignId: string, payload: CampaignOverrideInput, version: number): Promise<Campaign> {
   return normalizeCampaign(await requestJson<unknown>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/overrides`, {
     method: "POST",
-    ...(version === undefined ? {} : { headers: { "If-Match": String(version) } }),
+    headers: { "If-Match": String(version) },
     body: JSON.stringify(payload),
   }), campaignId);
 }
 
-export async function removeCampaignOverride(campaignId: string, overrideId: string, version?: number): Promise<Campaign> {
+export async function removeCampaignOverride(campaignId: string, overrideId: string, version: number): Promise<Campaign> {
   return normalizeCampaign(await requestJson<unknown>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/overrides/${encodeURIComponent(overrideId)}`, {
     method: "DELETE",
-    ...(version === undefined ? {} : { headers: { "If-Match": String(version) } }),
+    headers: { "If-Match": String(version) },
   }), campaignId);
 }
 
-export async function confirmCampaign(campaignId: string, idempotencyKey: string, version?: number): Promise<Campaign> {
+export async function confirmCampaign(campaignId: string, idempotencyKey: string, version: number): Promise<Campaign> {
   return normalizeCampaign(await requestJson<unknown>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/confirm`, {
     method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey, ...(version === undefined ? {} : { "If-Match": String(version) }) },
+    headers: { "Idempotency-Key": idempotencyKey, "If-Match": String(version) },
     body: JSON.stringify({}),
   }), campaignId);
 }
 
-export async function archiveCampaign(campaignId: string, version?: number): Promise<Campaign> {
+export async function archiveCampaign(campaignId: string, version: number): Promise<Campaign> {
   return normalizeCampaign(await requestJson<unknown>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/archive`, {
     method: "POST",
-    ...(version === undefined ? {} : { headers: { "If-Match": String(version) } }),
+    headers: { "If-Match": String(version) },
     body: JSON.stringify({}),
   }), campaignId);
 }
