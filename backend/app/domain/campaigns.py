@@ -17,6 +17,7 @@ from backend.app.db.models import (
     Campaign,
     CampaignOverride,
     CampaignRecommendation,
+    CampaignSelection,
     Customer,
     IdempotencyRecord,
     OptimizationRun,
@@ -63,6 +64,28 @@ def percentile_rank(value: float, population: Iterable[float]) -> float:
     return (average_rank - 1) / (count - 1)
 
 
+def _percentile_rank_map(population: Iterable[float]) -> dict[float, float]:
+    """Compute all average-rank percentiles in one sort."""
+
+    values = sorted(float(item) for item in population)
+    count = len(values)
+    if count == 0:
+        return {}
+    if count == 1:
+        return {values[0]: 0.5}
+    ranks: dict[float, float] = {}
+    index = 0
+    while index < count:
+        value = values[index]
+        end = index + 1
+        while end < count and values[end] == value:
+            end += 1
+        average_rank = index + (end - index + 1) / 2
+        ranks[value] = (average_rank - 1) / (count - 1)
+        index = end
+    return ranks
+
+
 def campaign_priority(risk_score: float, monthly_percentile: float, historical_percentile: float) -> tuple[float, float]:
     value_index = MONTHLY_WEIGHT * monthly_percentile + HISTORICAL_WEIGHT * historical_percentile
     priority = 100 * float(risk_score) * value_index
@@ -82,6 +105,8 @@ def _candidates(session: Session) -> list[Candidate]:
     latest = _latest_predictions(session)
     monthly_population = [float(customer.monthly_charges) for customer in customers]
     historical_population = [float(customer.total_charges) for customer in customers]
+    monthly_ranks = _percentile_rank_map(monthly_population)
+    historical_ranks = _percentile_rank_map(historical_population)
     candidates: list[Candidate] = []
     for customer in customers:
         prediction = latest.get(customer.id)
@@ -92,8 +117,8 @@ def _candidates(session: Session) -> list[Candidate]:
         current_hash = hashlib.sha256(json.dumps(snapshot, sort_keys=True, default=str, separators=(",", ":")).encode()).hexdigest()
         if prediction.input_hash != current_hash:
             continue
-        monthly = percentile_rank(float(customer.monthly_charges), monthly_population)
-        historical = percentile_rank(float(customer.total_charges), historical_population)
+        monthly = monthly_ranks[float(customer.monthly_charges)]
+        historical = historical_ranks[float(customer.total_charges)]
         value, priority = campaign_priority(float(prediction.risk_score), monthly, historical)
         candidates.append(Candidate(customer, prediction, monthly, historical, value, priority))
     return candidates
@@ -164,25 +189,57 @@ def latest_run(session: Session, campaign: Campaign) -> OptimizationRun | None:
     return session.scalar(select(OptimizationRun).where(OptimizationRun.campaign_id == campaign.id).order_by(desc(OptimizationRun.created_at)))
 
 
+def _effective_overrides(campaign: Campaign) -> dict[str, CampaignOverride]:
+    """Return the latest override for each customer in creation order."""
+
+    effective: dict[str, CampaignOverride] = {}
+    for item in campaign.overrides:
+        effective[item.customer_id] = item
+    return effective
+
+
 def apply_override(session: Session, campaign: Campaign, *, customer_id: str, action: str, reason: str, replacement_customer_id: str | None = None) -> CampaignOverride:
     if campaign.status != "optimized":
         raise CampaignError("campaign_state_conflict", "Overrides are available only after optimization.")
-    if len(reason.strip()) < 5 or len(reason) > 500:
+    reason = reason.strip()
+    if len(reason) < 5 or len(reason) > 500:
         raise CampaignError("campaign_override_reason_required", "Provide an override reason between 5 and 500 characters.", 422)
+    if action not in {"include", "exclude"}:
+        raise CampaignError("campaign_override_action_invalid", "Override action must be include or exclude.", 422)
+    if replacement_customer_id and action != "include":
+        raise CampaignError("campaign_replacement_invalid", "A replacement customer is only valid for an include override.", 422)
     run = latest_run(session, campaign)
     if run is None:
         raise CampaignError("campaign_state_conflict", "Optimize the campaign before adding an override.")
     recommendation = session.scalar(select(CampaignRecommendation).where(CampaignRecommendation.optimization_run_id == run.id, CampaignRecommendation.customer_id == customer_id))
     if recommendation is None:
         raise CampaignError("customer_not_found", "The customer is not in this optimization snapshot.", 404)
+    if action == "exclude" and not recommendation.recommended:
+        raise CampaignError("campaign_override_invalid", "Only a recommended customer can be excluded.", 422)
+    if action == "include" and recommendation.recommended:
+        raise CampaignError("campaign_override_invalid", "Include overrides are for customers outside the recommendation set.", 422)
+    replacement = None
+    if replacement_customer_id:
+        if replacement_customer_id == customer_id:
+            raise CampaignError("campaign_replacement_invalid", "Replacement must be a different customer.", 422)
+        replacement = session.scalar(select(CampaignRecommendation).where(CampaignRecommendation.optimization_run_id == run.id, CampaignRecommendation.customer_id == replacement_customer_id))
+        if replacement is None:
+            raise CampaignError("customer_not_found", "The replacement customer is not in this optimization snapshot.", 404)
+        if not replacement.recommended:
+            raise CampaignError("campaign_replacement_invalid", "Replacement must be a currently recommended customer.", 422)
     if action == "include":
-        selected = sum(1 for row in run.recommendations if row.recommended)
-        excludes = {row.customer_id for row in campaign.overrides if row.action == "exclude"}
-        includes = {row.customer_id for row in campaign.overrides if row.action == "include"}
-        current = selected - len(excludes) + len(includes)
+        selected_ids = {row.customer_id for row in run.recommendations if row.recommended}
+        for existing in _effective_overrides(campaign).values():
+            if existing.action == "exclude":
+                selected_ids.discard(existing.customer_id)
+            elif existing.action == "include":
+                selected_ids.add(existing.customer_id)
+                if existing.replacement_customer_id:
+                    selected_ids.discard(existing.replacement_customer_id)
+        current = len(selected_ids)
         if current >= campaign.capacity and not replacement_customer_id:
             raise CampaignError("campaign_capacity_exceeded", "Exclude or replace a selected customer before including another.", 422)
-    override = CampaignOverride(campaign_id=campaign.id, customer_id=customer_id, action=action, reason=reason.strip(), replacement_customer_id=replacement_customer_id, actor="local-demo-user")
+    override = CampaignOverride(campaign=campaign, customer_id=customer_id, action=action, reason=reason, replacement_customer_id=replacement_customer_id, actor="local-demo-user")
     session.add(override)
     campaign.version += 1
     session.flush()
@@ -190,15 +247,21 @@ def apply_override(session: Session, campaign: Campaign, *, customer_id: str, ac
 
 
 def confirm_campaign(session: Session, campaign: Campaign) -> None:
+    # PostgreSQL serializes two confirmations for the same campaign. SQLite ignores
+    # FOR UPDATE, but still exercises the same state/version checks in API tests.
+    locked = session.scalar(select(Campaign).where(Campaign.id == campaign.id).with_for_update())
+    if locked is None:
+        raise CampaignError("not_found", "The campaign does not exist.", 404)
+    campaign = locked
     if campaign.status != "optimized":
         raise CampaignError("campaign_state_conflict", "Only an optimized campaign can be confirmed.")
     run = latest_run(session, campaign)
     if run is None:
         raise CampaignError("campaign_state_conflict", "Optimize the campaign before confirming.")
-    overrides = {(item.customer_id): item for item in campaign.overrides}
+    overrides = _effective_overrides(campaign)
     replacement_ids = {
         item.replacement_customer_id
-        for item in campaign.overrides
+        for item in overrides.values()
         if item.action == "include" and item.replacement_customer_id
     }
     selected: list[CampaignRecommendation] = []
@@ -213,6 +276,21 @@ def confirm_campaign(session: Session, campaign: Campaign) -> None:
             decision = "selected"
         if decision == "selected":
             selected.append(recommendation)
+            session.add(CampaignSelection(
+                campaign_id=campaign.id,
+                recommendation_id=recommendation.id,
+                customer_uuid=recommendation.customer_uuid,
+                customer_id=recommendation.customer_id,
+                prediction_id=recommendation.prediction_id,
+                formula_version=run.formula_version,
+                monthly_spend_percentile=recommendation.monthly_spend_percentile,
+                historical_spend_percentile=recommendation.historical_spend_percentile,
+                value_index=recommendation.value_index,
+                priority_score=recommendation.priority_score,
+                risk_score=recommendation.risk_score,
+                reason=override.reason if override else None,
+                actor="local-demo-user",
+            ))
         session.add(OutreachDecision(campaign_id=campaign.id, recommendation_id=recommendation.id, customer_id=recommendation.customer_id, decision=decision, reason=override.reason if override else None, actor="local-demo-user"))
     if len(selected) > campaign.capacity:
         raise CampaignError("campaign_capacity_exceeded", "The confirmed selection exceeds campaign capacity.", 422)

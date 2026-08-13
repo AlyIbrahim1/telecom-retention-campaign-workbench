@@ -48,6 +48,7 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
             "campaigns",
             "optimization_runs",
             "campaign_recommendations",
+            "campaign_selections",
             "campaign_overrides",
             "outreach_decisions",
         } <= tables

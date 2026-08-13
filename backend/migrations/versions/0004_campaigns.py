@@ -61,6 +61,36 @@ def upgrade() -> None:
     )
     op.create_index("ix_recommendations_run_rank", "campaign_recommendations", ["optimization_run_id", "rank"])
     op.create_table(
+        "campaign_selections",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("campaign_id", sa.Uuid(), nullable=False),
+        sa.Column("recommendation_id", sa.Uuid(), nullable=False),
+        sa.Column("customer_uuid", sa.Uuid(), nullable=False),
+        sa.Column("customer_id", sa.String(64), nullable=False),
+        sa.Column("prediction_id", sa.Uuid(), nullable=False),
+        sa.Column("formula_version", sa.String(40), nullable=False),
+        sa.Column("monthly_spend_percentile", sa.Numeric(8, 6), nullable=False),
+        sa.Column("historical_spend_percentile", sa.Numeric(8, 6), nullable=False),
+        sa.Column("value_index", sa.Numeric(8, 6), nullable=False),
+        sa.Column("priority_score", sa.Numeric(12, 8), nullable=False),
+        sa.Column("risk_score", sa.Numeric(18, 16), nullable=False),
+        sa.Column("reason", sa.String(500), nullable=True),
+        sa.Column("actor", sa.String(80), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint("monthly_spend_percentile BETWEEN 0 AND 1", name="ck_selection_monthly_percentile"),
+        sa.CheckConstraint("historical_spend_percentile BETWEEN 0 AND 1", name="ck_selection_historical_percentile"),
+        sa.CheckConstraint("value_index BETWEEN 0 AND 1", name="ck_selection_value_index"),
+        sa.CheckConstraint("priority_score BETWEEN 0 AND 100", name="ck_selection_priority_score"),
+        sa.CheckConstraint("risk_score BETWEEN 0 AND 1", name="ck_selection_risk_score"),
+        sa.ForeignKeyConstraint(["campaign_id"], ["campaigns.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["recommendation_id"], ["campaign_recommendations.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["customer_uuid"], ["customers.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["prediction_id"], ["predictions.id"], ondelete="RESTRICT"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("campaign_id", "customer_id", name="uq_campaign_selection_customer"),
+    )
+    op.create_index("ix_campaign_selections_campaign_created_at", "campaign_selections", ["campaign_id", "created_at"])
+    op.create_table(
         "campaign_overrides",
         sa.Column("id", sa.Uuid(), nullable=False), sa.Column("campaign_id", sa.Uuid(), nullable=False), sa.Column("customer_id", sa.String(64), nullable=False), sa.Column("action", sa.String(8), nullable=False), sa.Column("reason", sa.String(500), nullable=False), sa.Column("replacement_customer_id", sa.String(64), nullable=True), sa.Column("actor", sa.String(80), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("action IN ('include', 'exclude')", name="ck_campaign_override_action"), sa.CheckConstraint("length(reason) BETWEEN 5 AND 500", name="ck_campaign_override_reason"), sa.ForeignKeyConstraint(["campaign_id"], ["campaigns.id"], ondelete="CASCADE"), sa.PrimaryKeyConstraint("id"),
@@ -77,6 +107,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_outreach_decisions_campaign_customer", table_name="outreach_decisions"); op.drop_table("outreach_decisions")
     op.drop_index("ix_campaign_overrides_campaign_created_at", table_name="campaign_overrides"); op.drop_table("campaign_overrides")
+    op.drop_index("ix_campaign_selections_campaign_created_at", table_name="campaign_selections"); op.drop_table("campaign_selections")
     op.drop_index("ix_recommendations_run_rank", table_name="campaign_recommendations"); op.drop_table("campaign_recommendations")
     op.drop_index("ix_optimization_runs_campaign_created_at", table_name="optimization_runs"); op.drop_table("optimization_runs")
     op.drop_index("ix_campaigns_status_created_at", table_name="campaigns"); op.drop_table("campaigns")

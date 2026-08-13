@@ -287,6 +287,9 @@ class Campaign(Base):
     decisions: Mapped[list["OutreachDecision"]] = relationship(
         back_populates="campaign", cascade="all, delete-orphan", order_by="OutreachDecision.created_at"
     )
+    selections: Mapped[list["CampaignSelection"]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignSelection.created_at"
+    )
 
 
 class OptimizationRun(Base):
@@ -394,6 +397,57 @@ class CampaignOverride(Base):
     campaign: Mapped[Campaign] = relationship(back_populates="overrides")
 
 
+class CampaignSelection(Base):
+    """Immutable final-selection snapshot created when a campaign is confirmed."""
+
+    __tablename__ = "campaign_selections"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "customer_id", name="uq_campaign_selection_customer"),
+        CheckConstraint("monthly_spend_percentile BETWEEN 0 AND 1", name="ck_selection_monthly_percentile"),
+        CheckConstraint("historical_spend_percentile BETWEEN 0 AND 1", name="ck_selection_historical_percentile"),
+        CheckConstraint("value_index BETWEEN 0 AND 1", name="ck_selection_value_index"),
+        CheckConstraint("priority_score BETWEEN 0 AND 100", name="ck_selection_priority_score"),
+        CheckConstraint("risk_score BETWEEN 0 AND 1", name="ck_selection_risk_score"),
+        Index("ix_campaign_selections_campaign_created_at", "campaign_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False
+    )
+    recommendation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("campaign_recommendations.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_uuid: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    prediction_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("predictions.id", ondelete="RESTRICT"), nullable=False
+    )
+    formula_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    monthly_spend_percentile: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    historical_spend_percentile: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    value_index: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    priority_score: Mapped[float] = mapped_column(Numeric(12, 8), nullable=False)
+    risk_score: Mapped[float] = mapped_column(Numeric(18, 16), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="selections")
+
+
+@event.listens_for(CampaignSelection, "before_update")
+def prevent_selection_update(_mapper: Any, _connection: Any, _target: CampaignSelection) -> None:
+    raise ValueError("Campaign selections are immutable")
+
+
+@event.listens_for(CampaignSelection, "before_delete")
+def prevent_selection_delete(_mapper: Any, _connection: Any, _target: CampaignSelection) -> None:
+    raise ValueError("Campaign selections are immutable")
+
+
 class OutreachDecision(Base):
     """Append-only human decision event; no external outreach is performed."""
 
@@ -410,3 +464,13 @@ class OutreachDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     campaign: Mapped[Campaign] = relationship(back_populates="decisions")
+
+
+@event.listens_for(OutreachDecision, "before_update")
+def prevent_outreach_decision_update(_mapper: Any, _connection: Any, _target: OutreachDecision) -> None:
+    raise ValueError("Outreach decisions are immutable")
+
+
+@event.listens_for(OutreachDecision, "before_delete")
+def prevent_outreach_decision_delete(_mapper: Any, _connection: Any, _target: OutreachDecision) -> None:
+    raise ValueError("Outreach decisions are immutable")

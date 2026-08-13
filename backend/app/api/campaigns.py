@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.core.errors import problem_response
-from backend.app.db.models import Campaign, CampaignOverride, CampaignRecommendation, IdempotencyRecord, OptimizationRun, OutreachDecision
+from backend.app.db.models import Campaign, CampaignOverride, CampaignRecommendation, CampaignSelection, IdempotencyRecord, OptimizationRun
 from backend.app.domain.campaigns import CampaignError, apply_override, confirm_campaign, latest_run, optimize_campaign, request_hash
 from backend.app.schemas.campaign import CampaignListResponse, CampaignOptimizeWrite, CampaignOverrideResponse, CampaignOverrideWrite, CampaignOptimizationResponse, CampaignRecommendationResponse, CampaignResponse, CampaignWrite
 
@@ -45,12 +45,14 @@ def _version(value: str | None) -> int | None:
         return None
 
 
-def _summary(campaign: Campaign) -> CampaignResponse:
+def _summary(campaign: Campaign, *, eligible_count: int = 0, recommended_count: int = 0, selected_count: int = 0, unused_capacity: int = 0) -> CampaignResponse:
     return CampaignResponse(
         campaign_id=campaign.id, name=campaign.name, capacity=campaign.capacity,
         status=campaign.status, version=campaign.version, created_at=campaign.created_at,
         updated_at=campaign.updated_at, confirmed_at=campaign.confirmed_at,
         latest_optimization_run_id=campaign.latest_optimization_run_id,
+        eligible_count=eligible_count, recommended_count=recommended_count,
+        selected_count=selected_count, unused_capacity=unused_capacity,
     )
 
 
@@ -59,14 +61,20 @@ def _response(session: Session, campaign: Campaign) -> CampaignResponse:
     recommendations: list[CampaignRecommendationResponse] = []
     overrides = list(session.scalars(select(CampaignOverride).where(CampaignOverride.campaign_id == campaign.id).order_by(CampaignOverride.created_at)))
     override_map = {item.customer_id: item for item in overrides}
-    selected_ids = {item.customer_id for item in session.scalars(select(OutreachDecision).where(OutreachDecision.campaign_id == campaign.id, OutreachDecision.decision == "selected"))}
+    selected_ids = {item.customer_id for item in session.scalars(select(CampaignSelection).where(CampaignSelection.campaign_id == campaign.id))}
     if run is not None:
         rows = list(session.scalars(select(CampaignRecommendation).where(CampaignRecommendation.optimization_run_id == run.id).order_by(CampaignRecommendation.rank)))
+        replacement_ids = {
+            item.replacement_customer_id
+            for item in override_map.values()
+            if item.action == "include" and item.replacement_customer_id
+        }
         for row in rows:
             override = override_map.get(row.customer_id)
             selected = row.customer_id in selected_ids
             is_override = override is not None
-            state = "selected" if selected else "excluded" if override and override.action == "exclude" else "override" if is_override else "recommended" if row.recommended else "not_selected"
+            replaced = campaign.status in {"confirmed", "archived"} and row.customer_id in replacement_ids
+            state = "selected" if selected else "not_selected" if replaced else "excluded" if override and override.action == "exclude" else "override" if is_override else "recommended" if row.recommended else "not_selected"
             recommendations.append(CampaignRecommendationResponse(
                 recommendation_id=row.id, customer_id=row.customer_id, prediction_id=row.prediction_id,
                 rank=row.rank, risk_score=float(row.risk_score), recommended_for_review=row.recommended_for_review,
@@ -123,7 +131,34 @@ async def list_campaigns(request: Request, page: int = Query(1, ge=1), page_size
             query = query.where(Campaign.status != "archived")
         total = int(session.scalar(select(func.count()).select_from(query.subquery())) or 0)
         rows = list(session.scalars(query.order_by(desc(Campaign.created_at)).offset((page - 1) * page_size).limit(page_size)))
-        return {"items": [_summary(row) for row in rows], "total": total, "page": page, "page_size": page_size}
+        run_counts: dict[UUID, tuple[int, int, int]] = {}
+        campaign_ids = [row.id for row in rows]
+        run_ids = [row.latest_optimization_run_id for row in rows if row.latest_optimization_run_id is not None]
+        if run_ids:
+            run_counts = {
+                row.id: (row.eligible_count, row.recommended_count, row.unused_capacity)
+                for row in session.execute(
+                    select(OptimizationRun.id, OptimizationRun.eligible_count, OptimizationRun.recommended_count, OptimizationRun.unused_capacity)
+                    .where(OptimizationRun.id.in_(run_ids))
+                )
+            }
+        selected_counts: dict[UUID, int] = {}
+        if campaign_ids:
+            selected_counts = {
+                campaign_id: count
+                for campaign_id, count in session.execute(
+                    select(CampaignSelection.campaign_id, func.count(CampaignSelection.id))
+                    .where(CampaignSelection.campaign_id.in_(campaign_ids))
+                    .group_by(CampaignSelection.campaign_id)
+                )
+            }
+        summaries = []
+        for row in rows:
+            eligible_count, recommended_count, run_unused = run_counts.get(row.latest_optimization_run_id, (0, 0, 0))
+            selected_count = selected_counts.get(row.id, 0)
+            unused_capacity = max(0, row.capacity - selected_count) if row.status in {"confirmed", "archived"} else run_unused
+            summaries.append(_summary(row, eligible_count=eligible_count, recommended_count=recommended_count, selected_count=selected_count, unused_capacity=unused_capacity))
+        return {"items": summaries, "total": total, "page": page, "page_size": page_size}
     finally:
         session.close()
 
@@ -189,6 +224,8 @@ async def update_campaign(request: Request, campaign_id: UUID, body: dict, if_ma
     if isinstance(payload, JSONResponse):
         return payload
     payload.name = payload.name.strip()
+    if not payload.name:
+        return problem_response(request, status=422, code="validation_failed", title="Request validation failed", detail="Campaign name cannot be blank.")
     session = _session(request)
     if session is None:
         return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
@@ -281,7 +318,9 @@ async def confirm(request: Request, campaign_id: UUID, if_match: str | None = He
     session = _session(request)
     if session is None: return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
     try:
-        campaign = _load(session, campaign_id)
+        # Lock before checking the idempotency record so concurrent retries for
+        # the same key wait for the first confirmation and then replay it.
+        campaign = session.scalar(select(Campaign).where(Campaign.id == campaign_id).with_for_update())
         if campaign is None: return problem_response(request, status=404, code="not_found", title="Campaign not found", detail="The requested campaign does not exist.")
         digest = request_hash({"campaign_id": str(campaign_id), "version": _version(if_match)})
         replay = _idempotency_replay(request, session, f"campaign:confirm:{campaign_id}", key, digest)
