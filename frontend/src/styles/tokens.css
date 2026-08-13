@@ -1,28 +1,35 @@
 :root {
-  /* Palette pulled from e&'s live production stylesheet (eand.com), not a
-     guess: #e00800 and #191329 are its two most-used brand hexes. Suisse and
-     Neotech (e&'s licensed typefaces) aren't available to self-host, so
-     display/body type stays on the already-bundled Archivo/Figtree variable
-     fonts, which share the same bold, clean-cut grotesque character. */
-  --color-canvas: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-ink: #191329;
-  --color-muted: #6b6b6b;
-  --color-border: #d8d8d8;
-  --color-accent: #e00800;
-  --color-accent-dark: #ad0600;
-  --color-accent-soft: #fbe4e2;
-  --color-focus: oklch(0.5 0.18 250);
+  /* e&-inspired product tokens. These are application values, not a claim of
+     official brand standards or licensed e& typography. */
+  --color-canvas: oklch(0.967 0.008 65);
+  --color-canvas-deep: oklch(0.937 0.011 65);
+  --color-surface: oklch(0.992 0.004 65);
+  --color-surface-raised: oklch(1 0 0);
+  --color-ink: oklch(0.19 0.038 305);
+  --color-ink-soft: oklch(0.28 0.026 305);
+  --color-muted: oklch(0.46 0.018 305);
+  --color-border: oklch(0.84 0.012 305);
+  --color-border-strong: oklch(0.7 0.018 305);
+  --color-nav: oklch(0.17 0.042 305);
+  --color-nav-muted: oklch(0.77 0.018 305);
+  --color-accent: oklch(0.58 0.235 29);
+  --color-accent-dark: oklch(0.47 0.19 29);
+  --color-accent-soft: oklch(0.94 0.042 29);
+  --color-success: oklch(0.47 0.105 155);
+  --color-success-soft: oklch(0.94 0.03 155);
+  --color-warning: oklch(0.55 0.12 72);
+  --color-warning-soft: oklch(0.95 0.035 72);
+  --color-focus: oklch(0.72 0.16 235);
 
   --font-display: "Archivo Variable", "Arial Narrow", sans-serif;
   --font-body: "Figtree Variable", Calibri, sans-serif;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.9rem;
+  --text-xs: 0.78rem;
+  --text-sm: 0.91rem;
   --text-base: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-2xl: 2.5rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.6rem;
+  --text-2xl: 2.2rem;
 
   --space-2xs: 0.25rem;
   --space-xs: 0.5rem;
@@ -34,8 +41,13 @@
   --space-3xl: 4rem;
   --space-4xl: 6rem;
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --content-width: 78rem;
+  --radius-xs: 0.35rem;
+  --radius-sm: 0.55rem;
+  --radius-md: 0.9rem;
+  --radius-lg: 1.35rem;
+  --shadow-sm: 0 0.5rem 1.5rem color-mix(in oklch, var(--color-nav) 7%, transparent);
+  --shadow-md: 0 1.25rem 3rem color-mix(in oklch, var(--color-nav) 10%, transparent);
+  --content-width: 86rem;
   --reading-width: 68ch;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }

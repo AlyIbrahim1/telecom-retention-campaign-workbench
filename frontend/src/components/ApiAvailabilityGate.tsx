@@ -16,7 +16,7 @@ export function ApiAvailabilityGate() {
         <p className="eyebrow">Connecting</p>
         <h1 id="loading-title">Preparing the workspace</h1>
         <p role="status" aria-live="polite">
-          Checking the local API and database…
+          Connecting to customer and campaign services…
         </p>
       </section>
     );
@@ -28,7 +28,7 @@ export function ApiAvailabilityGate() {
         <p className="eyebrow">Connection needed</p>
         <h1 id="unavailable-title">Workspace unavailable</h1>
         <div role="alert">
-          <p>The local API or database is not ready. Start the stack, then try again.</p>
+          <p>Customer and campaign services are not responding. Check the application services, then try again.</p>
         </div>
         <button type="button" onClick={() => readiness.refetch()}>
           Try again

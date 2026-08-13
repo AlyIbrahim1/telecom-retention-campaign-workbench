@@ -20,10 +20,16 @@ export function OverviewPage() {
 
   return (
     <section className="page-stack overview-page" aria-labelledby="overview-title">
-      <div className="page-heading">
-        <p className="eyebrow">Workspace</p>
-        <h1 id="overview-title">Campaign overview</h1>
-        <p className="page-description">Review the current customer population, prepare bounded imports, and keep every campaign selection under human control.</p>
+      <div className="overview-hero">
+        <div className="page-heading">
+          <p className="eyebrow">Retention operations</p>
+          <h1 id="overview-title">Campaign overview</h1>
+          <p className="page-description">Move from customer insight to a focused, reviewable retention campaign—with every decision kept in human hands.</p>
+        </div>
+        <div className="overview-hero-note" aria-label="Workspace purpose">
+          <span>01</span>
+          <p>Find priority customers. Understand the model signal. Build the right outreach list.</p>
+        </div>
       </div>
 
       {summary.isPending ? (
@@ -43,9 +49,9 @@ export function OverviewPage() {
       )}
 
       <nav className="overview-actions" aria-label="Workspace actions">
-        <Link to="/customers">Review customers</Link>
-        <Link to="/imports/new">Start an import</Link>
-        <Link to="/campaigns/new">Create a campaign</Link>
+        <Link className="overview-action overview-action-primary" to="/customers"><span>Explore customer insight</span><strong>Review customers</strong><span aria-hidden="true">↗</span></Link>
+        <Link className="overview-action" to="/campaigns/new"><span>Build the next outreach list</span><strong>Create a campaign</strong><span aria-hidden="true">↗</span></Link>
+        <Link className="overview-action" to="/imports/new"><span>Bring in customer records</span><strong>Start an import</strong><span aria-hidden="true">↗</span></Link>
       </nav>
     </section>
   );
