@@ -17,6 +17,7 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 a {
@@ -272,19 +273,17 @@ button:disabled {
 .overview-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
   margin: 0;
-  border-block: 1px solid var(--color-border);
 }
 
 .overview-summary div {
   display: grid;
   gap: var(--space-xs);
-  padding: var(--space-xl) 0;
-}
-
-.overview-summary div + div {
-  border-left: 1px solid var(--color-border);
-  padding-left: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-accent);
+  background: var(--color-surface);
 }
 
 .overview-summary dt {
@@ -486,6 +485,10 @@ button:disabled {
 .customer-table tbody tr:last-child th,
 .customer-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.customer-table tbody tr {
+  transition: background-color 180ms ease;
 }
 
 .customer-table tbody tr:hover {
@@ -1139,12 +1142,6 @@ button:disabled {
 
   .pagination > span {
     min-width: 0;
-  }
-
-  .overview-summary div + div {
-    border-top: 1px solid var(--color-border);
-    border-left: 0;
-    padding-left: 0;
   }
 
   .customer-toolbar,

@@ -1,13 +1,17 @@
 :root {
-  /* Provisional product tokens, not official e& brand colors or typography. */
-  --color-canvas: oklch(0.975 0.006 28);
-  --color-surface: oklch(0.995 0.003 28);
-  --color-ink: oklch(0.215 0.018 28);
-  --color-muted: oklch(0.46 0.018 28);
-  --color-border: oklch(0.84 0.012 28);
-  --color-accent: oklch(0.55 0.21 25);
-  --color-accent-dark: oklch(0.39 0.16 25);
-  --color-accent-soft: oklch(0.93 0.04 25);
+  /* Palette pulled from e&'s live production stylesheet (eand.com), not a
+     guess: #e00800 and #191329 are its two most-used brand hexes. Suisse and
+     Neotech (e&'s licensed typefaces) aren't available to self-host, so
+     display/body type stays on the already-bundled Archivo/Figtree variable
+     fonts, which share the same bold, clean-cut grotesque character. */
+  --color-canvas: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-ink: #191329;
+  --color-muted: #6b6b6b;
+  --color-border: #d8d8d8;
+  --color-accent: #e00800;
+  --color-accent-dark: #ad0600;
+  --color-accent-soft: #fbe4e2;
   --color-focus: oklch(0.5 0.18 250);
 
   --font-display: "Archivo Variable", "Arial Narrow", sans-serif;
