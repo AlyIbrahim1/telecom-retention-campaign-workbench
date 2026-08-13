@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,10 +39,11 @@ describe("chat browser journey", () => {
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByText("The record is at elevated risk.")).toBeVisible();
-    expect(screen.getByText("Customer record")).toBeVisible();
-    expect(screen.getByText("Model output")).toBeVisible();
-    expect(screen.getByText("Calculated priority")).toBeVisible();
-    expect(screen.getByText("AI suggestion")).toBeVisible();
+    const sources = screen.getByLabelText("Answer sources");
+    expect(within(sources).getByText("Customer record")).toBeVisible();
+    expect(within(sources).getByText("Model output")).toBeVisible();
+    expect(within(sources).getByText("Calculated priority")).toBeVisible();
+    expect(within(sources).getByText("AI suggestion")).toBeVisible();
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/chat\/sessions$/), expect.objectContaining({ body: JSON.stringify({ customer_id: "CTX-001" }) }));
   });
 
@@ -65,7 +66,8 @@ describe("chat browser journey", () => {
     expect(screen.getByText("Customer ID")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Confirm once" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/staged-actions\/action-1\/confirm$/), expect.objectContaining({ headers: expect.objectContaining({ "Idempotency-Key": expect.any(String) }), body: JSON.stringify({ confirmation_token: "token-1" }) })));
-    expect(await screen.findByText("Customer saved.")).toBeVisible();
+    const confirmation = await screen.findByRole("article", { name: "System message" });
+    expect(within(confirmation).getByText("Customer saved.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Confirm once" })).not.toBeInTheDocument();
   });
 
@@ -99,6 +101,7 @@ describe("chat browser journey", () => {
     expect(await screen.findByRole("heading", { name: "Review customer update" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Cancel preview" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/staged-actions\/action-2\/cancel$/), expect.objectContaining({ body: JSON.stringify({ confirmation_token: "token-2" }) })));
-    expect(await screen.findByText("Preview cancelled. No customer record was changed.")).toBeVisible();
+    const cancellation = await screen.findByRole("article", { name: "System message" });
+    expect(within(cancellation).getByText("Preview cancelled. No customer record was changed.")).toBeVisible();
   });
 });

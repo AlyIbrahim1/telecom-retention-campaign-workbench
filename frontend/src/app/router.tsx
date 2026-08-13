@@ -3,7 +3,7 @@ import { createBrowserRouter, type RouteObject } from "react-router-dom";
 import { ApiAvailabilityGate } from "../components/ApiAvailabilityGate";
 import { ApplicationShell } from "../components/ApplicationShell";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { PlaceholderPage } from "../pages/PlaceholderPage";
+import { OverviewPage } from "../pages/OverviewPage";
 import { CustomersPage } from "../pages/CustomersPage";
 import { CustomerDetailPage } from "../pages/CustomerDetailPage";
 import { CustomerFormPage } from "../pages/CustomerFormPage";
@@ -25,13 +25,7 @@ export const routes: RouteObject[] = [
         children: [
           {
             index: true,
-            element: (
-              <PlaceholderPage
-                eyebrow="Workspace"
-                title="Campaign overview"
-                description="Campaign activity and operational counts arrive in later stages."
-              />
-            ),
+            element: <OverviewPage />,
           },
           {
             path: "customers",

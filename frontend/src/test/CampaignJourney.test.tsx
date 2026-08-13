@@ -106,21 +106,21 @@ describe("campaign browser journeys", () => {
     const user = userEvent.setup();
     renderPath("/campaigns/new");
     expect(await screen.findByRole("heading", { name: "New campaign" })).toBeVisible();
-    await user.type(screen.getByLabelText("Campaign name"), "August review");
-    await user.clear(screen.getByLabelText("Customer capacity"));
-    await user.type(screen.getByLabelText("Customer capacity"), "2");
+    await user.type(screen.getByLabelText(/Campaign name/), "August review");
+    await user.clear(screen.getByLabelText(/Customer capacity/));
+    await user.type(screen.getByLabelText(/Customer capacity/), "2");
     await user.click(screen.getByRole("button", { name: "Create draft campaign" }));
     expect(await screen.findByRole("heading", { name: "Campaign details" })).toBeVisible();
-    expect(screen.getByText("Capacity")).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Capacity" })).toBeVisible();
   });
 
   it("keeps recommendation, override, and confirmation actions explicit", async () => {
     const user = userEvent.setup();
     renderPath("/campaigns/camp-001");
     expect(await screen.findByRole("heading", { name: "Campaign details" })).toBeVisible();
-    expect(screen.getByText("risk-spend-v1")).toBeVisible();
-    expect(screen.getByText("Recommended")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Exclude" }));
+    expect(await screen.findByText("risk-spend-v1")).toBeVisible();
+    expect(screen.getAllByText("Recommended")).not.toHaveLength(0);
+    await user.click(screen.getAllByRole("button", { name: "Exclude" })[0]);
     await user.type(screen.getByLabelText(/Reason/), "Existing service issue");
     await user.click(screen.getByRole("button", { name: "Record override" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/overrides$/), expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "If-Match": "1" }) })));

@@ -323,7 +323,10 @@ function StagedActionCard({ action, busy, onConfirm, onCancel }: { action: Stage
 }
 
 function humanField(field: string): string {
-  return field.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return field
+    .split("_")
+    .map((word) => word.toLowerCase() === "id" ? "ID" : `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
 }
 
 function formatValue(value: unknown): string {

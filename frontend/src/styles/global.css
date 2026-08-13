@@ -3,7 +3,6 @@
 }
 
 html {
-  min-width: 20rem;
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-body);
@@ -12,7 +11,6 @@ html {
 
 body {
   margin: 0;
-  min-width: 20rem;
   min-height: 100vh;
 }
 
@@ -174,6 +172,7 @@ h1 {
   font-weight: 680;
   letter-spacing: -0.055em;
   line-height: 0.96;
+  overflow-wrap: anywhere;
 }
 
 .page-description,
@@ -265,11 +264,60 @@ button:disabled {
 
 .page-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--space-xl);
+}
+
+.overview-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--color-border);
+}
+
+.overview-summary div {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-xl) 0;
+}
+
+.overview-summary div + div {
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-xl);
+}
+
+.overview-summary dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.overview-summary dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 680;
+  line-height: 1;
+}
+
+.overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-xl);
+}
+
+.overview-actions a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  font-weight: 700;
 }
 
 .page-heading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--space-sm);
   max-width: 70ch;
 }
@@ -280,6 +328,14 @@ button:disabled {
   justify-content: space-between;
   gap: var(--space-xl);
   max-width: none;
+}
+
+.page-heading-action > div:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--space-sm);
 }
 
 .page-heading h1,
@@ -1059,6 +1115,38 @@ button:disabled {
 }
 
 @media (max-width: 40rem) {
+  .overview-summary {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-summary > div,
+  .overview-actions,
+  .page-heading-action,
+  .detail-actions,
+  .pagination {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .overview-actions a,
+  .detail-actions > *,
+  .pagination > * {
+    max-width: 100%;
+  }
+
+  .pagination > span {
+    min-width: 0;
+  }
+
+  .overview-summary div + div {
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
+    padding-left: 0;
+  }
+
   .customer-toolbar,
   .metadata-grid,
   .fact-groups,

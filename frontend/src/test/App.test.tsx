@@ -91,7 +91,9 @@ it("shows a safe unavailable state and retries", async () => {
   expect(screen.queryByText("raw private failure")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("heading", { name: "Campaign overview" })).toBeVisible();
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(
+    fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/health/ready")),
+  ).toHaveLength(2);
 });
 
 it("renders a shell-preserving not-found page", () => {
