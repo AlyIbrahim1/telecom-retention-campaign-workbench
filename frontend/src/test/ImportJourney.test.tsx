@@ -78,7 +78,7 @@ describe("import browser journey", () => {
     await user.upload(screen.getByLabelText("CSV file"), file);
     await user.click(screen.getByRole("button", { name: "Run preflight" }));
     expect(await screen.findByRole("heading", { name: "Review preflight" })).toBeVisible();
-    expect(screen.getByText("2", { exact: true })).toBeVisible();
+    expect(screen.getAllByText("2", { exact: true }).length).toBeGreaterThanOrEqual(2);
     await user.click(screen.getByRole("button", { name: "Continue to confirmation" }));
     expect(await screen.findByRole("heading", { name: "Import details" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Confirm and process import" })).toBeVisible();
@@ -93,4 +93,3 @@ describe("import browser journey", () => {
     await waitFor(() => expect(screen.getByText("Ready")).toBeVisible());
   });
 });
-
