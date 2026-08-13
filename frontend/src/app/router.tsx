@@ -4,8 +4,10 @@ import { ApiAvailabilityGate } from "../components/ApiAvailabilityGate";
 import { ApplicationShell } from "../components/ApplicationShell";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
+import { CustomersPage } from "../pages/CustomersPage";
+import { CustomerDetailPage } from "../pages/CustomerDetailPage";
+import { CustomerFormPage } from "../pages/CustomerFormPage";
 
-const unavailableCustomerTools = "Customer tools arrive in a unavailable feature.";
 const unavailableImportTools = "Import tools arrive in a unavailable feature.";
 const unavailableCampaignTools = "Campaign tools arrive in a unavailable feature.";
 
@@ -29,19 +31,19 @@ export const routes: RouteObject[] = [
           },
           {
             path: "customers",
-            element: <PlaceholderPage eyebrow="Customers" title="Customers" description={unavailableCustomerTools} />,
+            element: <CustomersPage />,
           },
           {
             path: "customers/new",
-            element: <PlaceholderPage eyebrow="Customers" title="New customer" description={unavailableCustomerTools} />,
+            element: <CustomerFormPage mode="create" />,
           },
           {
             path: "customers/:customerId",
-            element: <PlaceholderPage eyebrow="Customers" title="Customer details" description={unavailableCustomerTools} />,
+            element: <CustomerDetailPage />,
           },
           {
             path: "customers/:customerId/edit",
-            element: <PlaceholderPage eyebrow="Customers" title="Update customer" description={unavailableCustomerTools} />,
+            element: <CustomerFormPage mode="update" />,
           },
           {
             path: "imports",
