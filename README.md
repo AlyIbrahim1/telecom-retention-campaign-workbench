@@ -10,8 +10,9 @@ in later stages, preparing human-confirmed retention campaigns.
  adds the trustworthy customer/prediction core: strict canonical
 validation, atomic create/update-and-score routes, immutable prediction
 snapshots, audit history, idempotency, optimistic update versions, and startup
-verification for the read-only model bundle. Customer list and form screens,
-imports, campaigns, and chat arrive in their documented stages.
+verification for the read-only model bundle.  adds the customer list,
+detail/history view, and explicit create/update forms with preview-before-save.
+Imports, campaigns, and chat remain in their documented later stages.
 
 ## Prerequisites
 
@@ -72,12 +73,13 @@ make migrate-down
 
 The  revision is intentionally empty;  introduces domain tables.
 
- API routes are available under `/api/v1`: `POST /customers/preview`,
-`POST /customers`, `GET /customers/{customer_id}`, explicit update preview and
-update routes, prediction history, audit history, model metadata, and the
-canonical customer schema. Create/update writes require an
-`Idempotency-Key`; updates also require `If-Match` with the current integer
-version.
+/3 API routes are available under `/api/v1`: `GET /customers` provides
+bounded server-side search, filters, stable sorting, and 25/50/100-row
+pagination; `POST /customers/preview`, `POST /customers`,
+`GET /customers/{customer_id}`, explicit update preview and update routes,
+prediction history, audit history, model metadata, and the canonical customer
+schema are also available. Create/update writes require an `Idempotency-Key`;
+updates also require `If-Match` with the current integer version.
 
 ## Tests
 
@@ -107,13 +109,15 @@ frontend origin must be exact, and `AUTH_ENABLED=true`, `APP_ENV=staging`, or
 `APP_ENV=production` refuses startup because authentication is not implemented.
 Secrets stay backend-only and `.env` is ignored by Git.
 
-## How the  foundation works
+## How the /3 foundation works
 
 The browser starts at `frontend/src/main.tsx`. React Router chooses a page,
-while TanStack Query calls `/health/ready` before a feature placeholder is
-shown. During that check the persistent application shell remains visible. A
-failed or non-ready response becomes a safe retry screen; raw network errors
-are never displayed. Unknown URLs use the same shell and a clear 404 page.
+while TanStack Query calls `/health/ready` before a feature page is shown.
+During that check the persistent application shell remains visible. A failed
+or non-ready response becomes a safe retry screen; raw network errors are
+never displayed. The  customer pages keep list filters, form values,
+preview state, duplicate-ID guidance, and optimistic-version conflicts visible
+to the operator. Unknown URLs use the same shell and a clear 404 page.
 
 The API starts through `backend.app.main:create_app`. Typed Pydantic settings
 reject unsafe deployment modes before serving traffic. Each HTTP request then
@@ -140,6 +144,6 @@ without guessing the customer data model early.
 - `teleco_churn_eda.ipynb` — analysis and model-training source of truth.
 - `app/` —  reference inference CLI; kept unchanged until .
 - `backend/` — FastAPI, settings, safety middleware, database, migrations, tests.
-- `frontend/` — accessible React shell and route placeholders.
+- `frontend/` — accessible React shell and  customer workflow.
 - `` — approved product plan, contracts, stages, and model evidence.
 - `models/` — trusted exported Joblib bundle; mounted read-only in the API.
