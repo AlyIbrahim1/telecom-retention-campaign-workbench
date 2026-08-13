@@ -262,12 +262,12 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
     >
       <PageHeader mode={mode} customerId={customerId} />
       {mode === "update" && <div className="info-panel"><strong>Explicit update</strong><span>This action re-scores the customer and appends a new immutable prediction. Current version: {updateQuery.data?.version}.</span></div>}
-      <div ref={summaryRef} className={`form-summary ${Object.values(errors).some(Boolean) || submitError ? "form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="polite">
+      <div ref={summaryRef} className={`form-summary ${Object.values(errors).some(Boolean) || submitError ? "form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="assertive">
         {Object.values(errors).some(Boolean) && <><strong>Review these fields</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}><a href={`#${field}`}>{FIELD_LABELS[field as FormField] ?? field}: {message}</a></li>)}</ul></>}
         {showConsistencyAction && <button type="button" className="button-secondary" onClick={applyConsistentValues}>Apply consistent values</button>}
         {submitError && <p>{submitError}{duplicateId && mode === "create" && <> <Link to={`/customers/${encodeURIComponent(duplicateId)}/edit`}>Open the explicit update page.</Link></>}</p>}
       </div>
-      <form onSubmit={handlePreview} noValidate>
+      <form onSubmit={handlePreview} noValidate aria-busy={busy !== null}>
         <div className="form-groups">
           {GROUPS.map((group) => (
             <fieldset className="form-group" key={group.title}>

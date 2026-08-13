@@ -43,7 +43,7 @@ export function CampaignCapacityMeter({ campaign, compact = false }: { campaign:
   const percent = campaign.capacity ? Math.round((used / campaign.capacity) * 100) : 0;
   const unused = Math.max(0, campaign.capacity - used);
   return (
-    <section className={`capacity-meter ${compact ? "capacity-meter-compact" : ""}`} aria-labelledby={compact ? undefined : "capacity-meter-title"}>
+    <section className={`capacity-meter ${compact ? "capacity-meter-compact" : ""}`} aria-label={compact ? "Campaign capacity" : undefined} aria-labelledby={compact ? undefined : "capacity-meter-title"}>
       <div className="capacity-meter-heading">
         <div>
           {!compact && <p className="eyebrow">{humanConfirmed ? "Human selection" : "Proposed list"}</p>}
@@ -52,7 +52,7 @@ export function CampaignCapacityMeter({ campaign, compact = false }: { campaign:
         <strong>{used} / {campaign.capacity}</strong>
       </div>
       <div className="capacity-track" role="progressbar" aria-label={`Campaign capacity ${used} of ${campaign.capacity} ${humanConfirmed ? "selected" : "proposed"}`} aria-valuemin={0} aria-valuemax={campaign.capacity} aria-valuenow={used}>
-        <span style={{ width: `${percent}%` }} />
+        <span style={{ transform: `scaleX(${percent / 100})` }} />
       </div>
       <div className="capacity-meta"><span>{campaign.eligible_count} eligible · {campaign.recommended_count} recommended</span><strong>{unused} unused</strong></div>
     </section>

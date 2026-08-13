@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/customers";
@@ -62,6 +62,7 @@ export function CampaignDetailPage() {
   const [replacementCustomerId, setReplacementCustomerId] = useState("");
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [confirmationKey, setConfirmationKey] = useState<string | null>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
 
   const campaignQuery = useQuery({
     queryKey: ["campaign", campaignId],
@@ -75,6 +76,10 @@ export function CampaignDetailPage() {
     setEditName(campaignData.name);
     setEditCapacity(String(campaignData.capacity));
   }, [campaignData, editOpen]);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   const proposedCustomerIds = useMemo(
     () => (campaignData ? proposedCampaignCustomerIds(campaignData) : new Set<string>()),
@@ -240,7 +245,7 @@ export function CampaignDetailPage() {
       </div>
 
       {reoptimizePrompt && <div className="import-alert" role="alert"><strong>Replace the current optimization snapshot?</strong><span>Re-optimization recalculates the ranked recommendations against a new database snapshot and clears unconfirmed overrides.</span><div className="state-actions"><button type="button" disabled={busy !== null} onClick={() => void runOptimization(true)}>Replace snapshot</button><button type="button" className="button-secondary" onClick={() => setReoptimizePrompt(false)}>Keep current snapshot</button></div></div>}
-      {error && <p className="import-alert" role="alert">{error}</p>}
+      {error && <p ref={errorRef} tabIndex={-1} className="import-alert" role="alert">{error}</p>}
 
       {editOpen && canEdit && <form className="campaign-edit-form" onSubmit={saveDraft}><div className="section-heading"><p className="eyebrow">Draft only</p><h2>Edit campaign boundaries</h2><p>Changing capacity or name does not optimize the list. Run optimization again when you are ready.</p></div><div className="campaign-edit-fields"><label className="form-field" htmlFor="edit-campaign-name"><span>Campaign name</span><input id="edit-campaign-name" value={editName} maxLength={120} onChange={(event) => setEditName(event.target.value)} /></label><label className="form-field" htmlFor="edit-campaign-capacity"><span>Customer capacity</span><input id="edit-campaign-capacity" type="number" min={1} step={1} inputMode="numeric" value={editCapacity} onChange={(event) => setEditCapacity(event.target.value)} /></label></div><div className="form-actions"><button type="submit" disabled={busy !== null}>{busy === "save" ? "Saving draft…" : "Save draft"}</button></div></form>}
 

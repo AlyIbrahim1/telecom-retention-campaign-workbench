@@ -133,8 +133,10 @@
 .capacity-track span {
   display: block;
   height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
   background: var(--color-accent);
-  transition: width 180ms ease-out;
+  transition: transform 180ms ease-out;
 }
 
 .capacity-meta {

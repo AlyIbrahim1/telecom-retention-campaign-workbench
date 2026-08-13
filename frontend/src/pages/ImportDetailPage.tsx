@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/customers";
@@ -35,6 +35,7 @@ export function ImportDetailPage() {
   const [actionBusy, setActionBusy] = useState<"confirm" | "cancel" | null>(null);
   const [actionErrorMessage, setActionErrorMessage] = useState("");
   const [downloadError, setDownloadError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
   const jobQuery = useQuery({
     queryKey: ["import", jobId],
     queryFn: () => getImport(jobId ?? ""),
@@ -44,6 +45,10 @@ export function ImportDetailPage() {
       return status && isImportActive(status) ? 2000 : false;
     },
   });
+
+  useEffect(() => {
+    if (actionErrorMessage || downloadError) errorRef.current?.focus();
+  }, [actionErrorMessage, downloadError]);
 
   if (jobQuery.isPending) {
     return <section className="page-stack import-detail-page" aria-labelledby="import-detail-title"><DetailHeader jobId={jobId} /><div className="loading-panel" role="status">Loading import progress…</div></section>;
@@ -98,8 +103,7 @@ export function ImportDetailPage() {
     <section className="page-stack import-detail-page" aria-labelledby="import-detail-title">
       <DetailHeader jobId={job.job_id} />
       <div className="detail-actions"><Link className="button-link button-secondary" to="/imports">Back to imports</Link>{canConfirm && <button type="button" disabled={actionBusy !== null} onClick={handleConfirm}>{actionBusy === "confirm" ? "Confirming…" : "Confirm and process import"}</button>}{canCancel && <button type="button" className="button-secondary" disabled={actionBusy !== null} onClick={handleCancel}>{actionBusy === "cancel" ? "Cancelling…" : "Cancel import"}</button>}</div>
-      {actionErrorMessage && <p className="import-alert" role="alert">{actionErrorMessage}</p>}
-      {downloadError && <p className="import-alert" role="alert">{downloadError}</p>}
+      {(actionErrorMessage || downloadError) && <div ref={errorRef} tabIndex={-1}>{actionErrorMessage && <p className="import-alert" role="alert">{actionErrorMessage}</p>}{downloadError && <p className="import-alert" role="alert">{downloadError}</p>}</div>}
       <section className="import-status-panel" aria-labelledby="import-status-title"><div className="preview-heading"><div><p className="eyebrow">{job.mode === "create" ? "Create mode" : "Update mode"}</p><h2 id="import-status-title">{job.filename}</h2><p className="import-job-meta">Job {job.job_id} · Started {formatDate(job.created_at)}</p></div><ImportStatusBadge status={job.status} /></div>{isImportActive(job.status) && <ImportProgress job={job} />}{job.message && <p className="import-job-message" role="status">{job.message}</p>}<ImportCounts job={job} /></section>
       <section className="import-outcomes" aria-labelledby="import-outcomes-title"><div className="section-heading"><p className="eyebrow">Row-level transparency</p><h2 id="import-outcomes-title">Outcomes</h2><p>Valid rows are processed independently. Invalid rows never write customer data.</p></div>{job.status === "partially_completed" && <div className="import-alert"><strong>Partial success</strong><span>Some rows completed and some were rejected. Download both files to review every original row.</span></div>}{job.status === "failed" && <div className="import-alert"><strong>Import failed</strong><span>No new action is taken automatically. Review the job message and start a fresh preflight if needed.</span></div>}{job.status === "cancelled" && <div className="import-alert"><strong>Import cancelled</strong><span>Rows not yet processed were not written.</span></div>}<div className="download-actions"><button type="button" className="button-secondary" disabled={!isImportTerminal(job.status)} onClick={() => handleDownload("results")}>Download result CSV</button><button type="button" className="button-secondary" disabled={!isImportTerminal(job.status)} onClick={() => handleDownload("errors")}>Download error CSV</button></div></section>
       {isImportActive(job.status) && <p className="poll-note" role="status">This page checks for progress every two seconds while the job is active.</p>}

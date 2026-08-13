@@ -45,6 +45,7 @@ describe("route placeholders", () => {
     ["/campaigns", "Campaigns"],
     ["/campaigns/new", "New campaign"],
     ["/campaigns/campaign-1", "Campaign details"],
+    ["/chat", "Assistant chat"],
   ];
 
   it.each(cases)("renders %s", async (path, heading) => {

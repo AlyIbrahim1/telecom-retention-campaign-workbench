@@ -251,7 +251,7 @@ export function ChatPage() {
       </div>
 
       <div className="chat-layout">
-        <section className="chat-workspace" aria-label="Conversation">
+        <section className="chat-workspace" aria-label="Conversation" aria-busy={busy === "sending"}>
           <div className="chat-transcript" aria-live="off">
             {busy === "starting" && !session ? <div className="loading-panel chat-state" role="status">Connecting to the assistant…</div> : null}
             {messages.length === 0 && busy !== "starting" && !providerUnavailable ? <EmptyChat onSuggestion={(suggestion) => void sendMessage(suggestion)} /> : null}

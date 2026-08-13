@@ -143,6 +143,11 @@
 .poll-note {
   color: var(--color-muted);
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.import-table a {
+  overflow-wrap: anywhere;
 }
 
 .preflight-hash {
@@ -303,8 +308,10 @@
 .import-progress-track span {
   display: block;
   height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
   background: var(--color-accent);
-  transition: width 180ms ease-out;
+  transition: transform 180ms ease-out;
 }
 
 .import-progress-meta {
@@ -371,4 +378,3 @@
     transition: none;
   }
 }
-

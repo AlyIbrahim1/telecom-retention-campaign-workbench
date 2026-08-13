@@ -88,7 +88,7 @@ export function ImportNewPage() {
   return (
     <section className="page-stack import-new-page" aria-labelledby="new-import-title">
       <div className="page-heading"><p className="eyebrow">Data operations</p><h1 id="new-import-title">New import</h1><p className="page-description">Choose one explicit mode, run a no-write preflight, then confirm the exact valid and invalid row counts.</p></div>
-      <div ref={summaryRef} className={`form-summary ${error ? "form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="polite">{error && <p>{error}</p>}</div>
+      <div ref={summaryRef} className={`form-summary ${error ? "form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="assertive">{error && <p>{error}</p>}</div>
 
       <section className="import-step" aria-labelledby="import-file-step"><div className="section-heading"><p className="eyebrow">Step 1</p><h2 id="import-file-step">Choose a CSV file</h2><p>CSV only, UTF-8 (with optional BOM), comma-separated, up to 10 MB and 10,000 rows.</p></div><div className="detail-actions"><button type="button" className="button-secondary" onClick={handleTemplate}>Download canonical template</button><button type="button" className="button-secondary" onClick={() => inputRef.current?.click()}>Choose CSV</button></div><label className="file-picker" htmlFor="import-file"><span>CSV file</span><input ref={inputRef} id="import-file" aria-label="CSV file" type="file" accept=".csv,text/csv" onChange={selectFile} />{file ? <strong>{file.name} <small>({Math.ceil(file.size / 1024)} KB)</small></strong> : <small>No file selected</small>}</label></section>
 

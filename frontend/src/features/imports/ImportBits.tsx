@@ -24,8 +24,8 @@ export function ImportStatusBadge({ status }: { status: ImportStatus }) {
 export function ImportProgress({ job }: { job: ImportJob }) {
   const progress = Math.round(Math.min(100, Math.max(0, job.progress_percent)));
   return (
-    <div className="import-progress" aria-label={`Import progress ${progress}%`}>
-      <div className="import-progress-track"><span style={{ width: `${progress}%` }} /></div>
+    <div className="import-progress">
+      <div className="import-progress-track" role="progressbar" aria-label="Import progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`${progress}% · ${job.processed_rows} of ${job.total_rows || "unknown"} rows processed`}><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
       <div className="import-progress-meta"><strong>{progress}%</strong><span>{job.processed_rows} of {job.total_rows || "—"} rows processed</span></div>
     </div>
   );
@@ -57,4 +57,3 @@ export function ImportCounts({ job }: { job: ImportJob }) {
     </dl>
   );
 }
-
