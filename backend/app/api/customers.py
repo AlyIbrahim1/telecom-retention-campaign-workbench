@@ -362,10 +362,6 @@ async def list_customers(
     empty for every customer.
     """
 
-    session = _session(request)
-    if session is None:
-        return _service_unavailable(request)
-
     if page_size not in {25, 50, 100}:
         return problem_response(
             request,
@@ -381,6 +377,10 @@ async def list_customers(
                 }
             ],
         )
+
+    session = _session(request)
+    if session is None:
+        return _service_unavailable(request)
 
     latest = _latest_prediction_subquery()
     latest_join = (latest.c.prediction_customer_uuid == Customer.id) & (
