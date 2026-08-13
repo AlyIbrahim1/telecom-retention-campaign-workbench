@@ -25,7 +25,7 @@ function actionError(error: unknown): string {
   if (!(error instanceof ApiError)) return "The action could not be completed. The latest job state is still available.";
   if (error.problem.code === "import_not_ready") return "This import is not ready for that action. Refresh the latest job state and try again.";
   if (error.problem.code === "import_cancelled") return "This import has already been cancelled.";
-  if (error.status === 0) return "The local API could not be reached. The latest job state is still available.";
+  if (error.status === 0) return "Import services could not be reached. The latest job state is still available.";
   return error.message || "The action could not be completed.";
 }
 

@@ -18,9 +18,9 @@ async function saveBlob(blob: Blob, filename: string) {
 
 function messageFor(error: unknown): string {
   if (!(error instanceof ApiError)) return "The preflight could not be completed. Your selected file and mode are still here.";
-  if (error.problem.code === "import_limit_exceeded") return "This file is larger than the 10 MB pilot limit. Choose a smaller CSV.";
+  if (error.problem.code === "import_limit_exceeded") return "This file is larger than the 10 MB upload limit. Choose a smaller CSV.";
   if (error.problem.code === "import_file_invalid" || error.problem.code === "import_schema_invalid") return error.message;
-  if (error.status === 0) return "The local API could not be reached. Your selected file and mode are still here.";
+  if (error.status === 0) return "Import services could not be reached. Your selected file and mode are still here.";
   return error.message || "The preflight could not be completed. Try again.";
 }
 
@@ -66,7 +66,7 @@ export function ImportNewPage() {
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setError("This file is larger than the 10 MB pilot limit. Choose a smaller CSV.");
+      setError("This file is larger than the 10 MB upload limit. Choose a smaller CSV.");
       summaryRef.current?.focus();
       return;
     }

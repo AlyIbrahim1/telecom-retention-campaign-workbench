@@ -11,7 +11,7 @@ function idempotencyKey() {
 
 function actionMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "The campaign could not be created. Your entries are still here.";
-  if (error.status === 0) return "The local API could not be reached. Your entries are still here.";
+  if (error.status === 0) return "Campaign services could not be reached. Your entries are still here.";
   if (["campaign_conflict", "duplicate_campaign_name", "conflict"].includes(error.problem.code ?? "")) return "A campaign with that name already exists. Choose a different name.";
   if (["validation_error", "validation_failed", "campaign_invalid", "campaign_capacity_exceeded"].includes(error.problem.code ?? "")) return error.message;
   return error.message || "The campaign could not be created. Try again.";

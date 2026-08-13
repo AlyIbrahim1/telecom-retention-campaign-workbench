@@ -30,7 +30,7 @@ function idempotencyKey() {
 
 function safeActionMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "The assistant could not complete that request. Try again.";
-  if (error.status === 0) return "The local API could not be reached. The rest of the workspace is still available.";
+  if (error.status === 0) return "Assistant services could not be reached. The rest of the workspace is still available.";
   switch (error.problem.code) {
     case "ai_unavailable":
     case "chat_unavailable":

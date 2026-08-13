@@ -36,7 +36,7 @@ function idempotencyKey() {
 
 function actionMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "The campaign action could not be completed. The latest saved state is still available.";
-  if (error.status === 0) return "The local API could not be reached. The latest saved state is still available.";
+  if (error.status === 0) return "Campaign services could not be reached. The latest saved state is still available.";
   if (error.problem.code === "campaign_capacity_exceeded") return "Capacity would be exceeded. Exclude or replace a selected customer before including another.";
   if (error.problem.code === "campaign_reoptimization_confirmation_required") return "Re-optimization needs an explicit acknowledgement because it replaces the current draft snapshot.";
   if (error.problem.code === "campaign_not_optimized") return "Optimize the campaign before reviewing or confirming recommendations.";

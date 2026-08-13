@@ -161,7 +161,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, {
       code: "service_unavailable",
       title: "Connection unavailable",
-      detail: "The local API could not be reached. Check the stack and try again.",
+      detail: "Customer services could not be reached. Check the application services and try again.",
     });
   }
 

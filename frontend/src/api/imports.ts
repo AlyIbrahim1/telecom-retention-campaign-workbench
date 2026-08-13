@@ -95,7 +95,7 @@ async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, {
       code: "service_unavailable",
       title: "Connection unavailable",
-      detail: "The local API could not be reached. Check the stack and try again.",
+      detail: "Import services could not be reached. Check the application services and try again.",
     });
   }
   if (!response.ok) throw new ApiError(response.status, await parseProblem(response));
@@ -113,7 +113,7 @@ async function fileRequest(path: string, init?: RequestInit): Promise<Blob> {
     throw new ApiError(0, {
       code: "service_unavailable",
       title: "Connection unavailable",
-      detail: "The local API could not be reached. Check the stack and try again.",
+      detail: "Import services could not be reached. Check the application services and try again.",
     });
   }
   if (!response.ok) throw new ApiError(response.status, await parseProblem(response));
@@ -243,7 +243,7 @@ export async function preflightImport(file: File, mode: ImportMode): Promise<Imp
       body: form,
     });
   } catch {
-    throw new ApiError(0, { code: "service_unavailable", title: "Connection unavailable", detail: "The local API could not be reached. Check the stack and try again." });
+    throw new ApiError(0, { code: "service_unavailable", title: "Connection unavailable", detail: "Import services could not be reached. Check the application services and try again." });
   }
   if (!response.ok) throw new ApiError(response.status, await parseProblem(response));
   return normalizePreflight(await response.json());

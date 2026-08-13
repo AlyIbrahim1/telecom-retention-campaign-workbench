@@ -67,8 +67,8 @@ function clientValidation(values: FormValues): Record<string, string> {
 }
 
 function userMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return "The local API could not be reached. Check the stack and try again.";
-  if (error.status === 0) return "The local API could not be reached. Check the stack and try again.";
+  if (!(error instanceof ApiError)) return "Customer services could not be reached. Check the application services and try again.";
+  if (error.status === 0) return "Customer services could not be reached. Check the application services and try again.";
   if (error.status === 503 && error.problem.code === "service_unavailable") {
     return "The API or database is not ready. No customer changes were saved; try again shortly.";
   }
@@ -307,7 +307,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
             <div><p className="eyebrow">No data saved yet</p><h2 id="preview-title">Review prediction before {mode === "create" ? "creating" : "saving"}</h2></div>
             <ModelScore prediction={preview.prediction} />
           </div>
-          <p className="model-explanation">This is a model score from the pilot model, not a guaranteed probability. It is compared with the exported review threshold of {Math.round(preview.prediction.threshold * 100)}%.</p>
+          <p className="model-explanation"><strong>About this score.</strong> It is a ranking signal, not a guaranteed probability. The current review threshold is {Math.round(preview.prediction.threshold * 100)}%.</p>
           <RecommendationStatusLine recommended={preview.prediction.recommended_for_review} />
           <WarningList warnings={preview.warnings} />
           <details className="normalized-details">

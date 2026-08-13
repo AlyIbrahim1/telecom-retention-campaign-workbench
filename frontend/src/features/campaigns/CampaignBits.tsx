@@ -83,7 +83,7 @@ export function CampaignFormula({ campaign }: { campaign: Campaign }) {
         <div><dt>Formula version</dt><dd>{formulaVersion}</dd></div>
         <div><dt>Population snapshot</dt><dd>{formatDate(optimization?.reference_population_timestamp)}</dd></div>
       </dl>
-      <p className="pilot-note">Percentiles use all active, valid customer records from one snapshot. Eligibility controls recommendations; equal values receive their average rank, keeping repeated scores deterministic.</p>
+      <p className="decision-note"><strong>How ranking stays consistent.</strong> Percentiles use all active, valid customer records from one snapshot. Eligibility controls recommendations; equal values receive their average rank.</p>
     </section>
   );
 }

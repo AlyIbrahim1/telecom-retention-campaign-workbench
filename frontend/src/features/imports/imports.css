@@ -17,6 +17,7 @@
   gap: var(--space-2xs);
   padding: var(--space-md);
   border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
   background: var(--color-accent-soft);
   color: var(--color-ink);
 }
@@ -27,9 +28,11 @@
 .import-outcomes {
   display: grid;
   gap: var(--space-lg);
-  padding: clamp(var(--space-lg), 4vw, var(--space-2xl));
+  padding: clamp(var(--space-xl), 4vw, var(--space-2xl));
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
 }
 
 .import-step > .section-heading,
@@ -40,12 +43,21 @@
 .file-picker {
   display: grid;
   gap: var(--space-xs);
-  max-width: 38rem;
-  padding: var(--space-lg);
+  max-width: none;
+  min-height: 12rem;
+  align-content: center;
+  justify-items: center;
+  padding: var(--space-xl);
   border: 1px dashed var(--color-border);
-  background: var(--color-canvas);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-deep);
   color: var(--color-ink);
   cursor: pointer;
+}
+
+.file-picker:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 .file-picker > span {
@@ -74,7 +86,8 @@
 .mode-choice legend {
   display: grid;
   gap: var(--space-xs);
-  padding: 0 var(--space-xs);
+  padding: 0 var(--space-sm);
+  background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: 1.35rem;
@@ -102,13 +115,15 @@
   min-height: 2.75rem;
   padding: var(--space-md);
   border: 1px solid var(--color-border);
-  background: var(--color-canvas);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   cursor: pointer;
 }
 
 .radio-grid label:has(input:checked) {
-  border-color: var(--color-accent-dark);
+  border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  box-shadow: 0 0 0 1px var(--color-accent);
 }
 
 .radio-grid input,
@@ -134,7 +149,41 @@
 }
 
 .preflight-panel {
-  border-color: var(--color-accent-dark);
+  border: 0;
+  background: var(--color-nav);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.preflight-panel .eyebrow,
+.preflight-panel .page-description,
+.preflight-panel .preflight-hash,
+.preflight-panel .import-counts dt,
+.preflight-panel .issue-list span,
+.preflight-panel .confirm-panel p,
+.preflight-panel .confirm-panel small {
+  color: var(--color-nav-muted);
+}
+
+.preflight-panel h2,
+.preflight-panel h3,
+.preflight-panel .import-counts dd,
+.preflight-panel .issue-clear,
+.preflight-panel .issue-list strong,
+.preflight-panel summary {
+  color: var(--color-surface);
+}
+
+.preflight-panel .import-counts div,
+.preflight-panel details {
+  border-color: color-mix(in oklch, var(--color-surface) 16%, transparent);
+}
+
+.preflight-panel .preflight-columns section,
+.preflight-panel .confirm-panel {
+  padding: var(--space-lg);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
 }
 
 .preflight-hash,
@@ -184,6 +233,7 @@
   font-size: var(--text-xl);
   font-weight: 700;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .preflight-columns {
@@ -281,7 +331,8 @@
   display: grid;
   gap: var(--space-sm);
   padding: var(--space-lg);
-  background: var(--color-canvas);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas-deep);
 }
 
 .confirm-panel p {
@@ -302,7 +353,8 @@
 .import-progress-track {
   height: 0.75rem;
   overflow: hidden;
-  background: var(--color-canvas);
+  border-radius: var(--radius-xs);
+  background: var(--color-canvas-deep);
 }
 
 .import-progress-track span {
@@ -311,7 +363,7 @@
   transform: scaleX(0);
   transform-origin: left center;
   background: var(--color-accent);
-  transition: transform 180ms ease-out;
+  transition: transform 220ms var(--ease-out);
 }
 
 .import-progress-meta {
@@ -339,9 +391,9 @@
 }
 
 .status-warning {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-dark);
+  border-color: color-mix(in oklch, var(--color-warning) 50%, var(--color-border));
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 @media (max-width: 56rem) {

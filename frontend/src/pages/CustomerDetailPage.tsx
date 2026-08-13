@@ -52,7 +52,7 @@ export function CustomerDetailPage() {
             <div><dt>Account state</dt><dd>{detail.is_active ? "Active" : "Inactive"}</dd></div>
             <div><dt>Record version</dt><dd>{detail.version}</dd></div>
           </dl>
-          <p className="pilot-note">Pilot limitation: this is a model ranking score, not a guaranteed probability or causal explanation of churn.</p>
+          <p className="decision-note"><strong>About this score.</strong> It is a ranking signal, not a guaranteed probability or a causal explanation of churn.</p>
           <WarningList warnings={current.warnings} />
         </> : <div className="empty-inline"><strong>No successful prediction yet</strong><span>Update this record to generate a new model score.</span></div>}
       </section>
@@ -75,7 +75,7 @@ export function CustomerDetailPage() {
       </section>
 
       <section aria-labelledby="audit-title" className="audit-section">
-        <div className="section-heading"><p className="eyebrow">Traceability</p><h2 id="audit-title">Record activity</h2><p>Actions are labeled with the local pilot actor and source.</p></div>
+        <div className="section-heading"><p className="eyebrow">Traceability</p><h2 id="audit-title">Record activity</h2><p>Every action is recorded with its actor, source, and timestamp.</p></div>
         {detail.audit_events.length ? <ol className="audit-list">{detail.audit_events.map((event) => <li key={event.event_id}><strong>{humanAction(event.action)}</strong><span>{formatDate(event.created_at)} · {event.actor} · {event.source}</span></li>)}</ol> : <div className="empty-inline"><strong>No activity recorded</strong></div>}
       </section>
     </section>
