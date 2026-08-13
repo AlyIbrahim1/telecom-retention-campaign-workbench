@@ -1,0 +1,10 @@
+FROM node:24-alpine
+
+WORKDIR /workspace/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend .
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

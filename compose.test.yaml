@@ -1,0 +1,28 @@
+services:
+  postgres-test:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  migration-test:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: test
+      AUTH_ENABLED: "false"
+      DATABASE_URL: postgresql+psycopg://test_user:test_password_only@postgres-test:5432/postgres
+      TEST_DATABASE_ADMIN_URL: postgresql://test_user:test_password_only@postgres-test:5432/postgres
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    command: pytest backend/tests/test_migrations.py -q

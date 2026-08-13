@@ -1,0 +1,37 @@
+:root {
+  /* Provisional product tokens, not official e& brand colors or typography. */
+  --color-canvas: oklch(0.975 0.006 28);
+  --color-surface: oklch(0.995 0.003 28);
+  --color-ink: oklch(0.215 0.018 28);
+  --color-muted: oklch(0.46 0.018 28);
+  --color-border: oklch(0.84 0.012 28);
+  --color-accent: oklch(0.55 0.21 25);
+  --color-accent-dark: oklch(0.39 0.16 25);
+  --color-accent-soft: oklch(0.93 0.04 25);
+  --color-focus: oklch(0.5 0.18 250);
+
+  --font-display: "Archivo Variable", "Arial Narrow", sans-serif;
+  --font-body: "Figtree Variable", Calibri, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.9rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --space-4xl: 6rem;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --content-width: 78rem;
+  --reading-width: 68ch;
+}
