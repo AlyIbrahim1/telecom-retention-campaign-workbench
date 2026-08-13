@@ -1,7 +1,8 @@
 # Retention Campaign Workbench
 
-A beginner-friendly local pilot for reviewing telecom churn model scores and,
-in later stages, preparing human-confirmed retention campaigns.
+A beginner-friendly local pilot for reviewing telecom churn model scores,
+preparing human-confirmed retention campaigns, and using an optional grounded
+assistant for fact lookup and confirmed single-customer writes.
 
 > **PILOT — SAMPLE OR APPROVED TEST DATA ONLY.** The application has no
 > authentication. Do not expose it publicly or use real production customer
@@ -18,7 +19,13 @@ partial-success, cancellation, and formula-safe result/error exports.
 snapshots, explainable value/priority rows, reasoned overrides, explicit
 confirmation, and archive lifecycle. Priority is a spending-derived review
 proxy, not a probability, guaranteed profit, or automatic outreach action.
-Chat remains in its documented later release.
+ adds the optional grounded assistant at `/chat`. It can retrieve one
+customer or campaign at a time, explain stored model/formula outputs, and stage
+one complete customer create/update. Chat writes always show a structured
+preview and require a one-time confirmation token plus idempotency key; no
+campaign confirmation or external outreach is available. Without
+`OPENAI_API_KEY`, chat reports a safe unavailable state while the rest of the
+workspace remains usable.
 
 ## Prerequisites
 
@@ -77,8 +84,9 @@ Revert the most recent migration without deleting the database volume:
 make migrate-down
 ```
 
-The  revision is intentionally empty;  introduces domain tables
-and  adds `import_jobs` and `import_row_outcomes`.
+The  revision is intentionally empty;  introduces domain tables,
+ adds imports,  adds campaign snapshots, and  adds bounded
+chat sessions, tool audit metadata, and staged actions.
 
 /3/4/5 API routes are available under `/api/v1`: `GET /customers` provides
 bounded server-side search, filters, stable sorting, and 25/50/100-row
@@ -158,6 +166,6 @@ without guessing the customer data model early.
 - `teleco_churn_eda.ipynb` — analysis and model-training source of truth.
 - `app/` —  reference inference CLI; kept unchanged until .
 - `backend/` — FastAPI, settings, safety middleware, database, migrations, tests.
-- `frontend/` — accessible React shell, customer/import workflows, and the  campaign workbench.
+- `frontend/` — accessible React shell, customer/import/campaign workflows, and the optional  assistant.
 - `` — approved product plan, contracts, stages, and model evidence.
 - `models/` — trusted exported Joblib bundle; mounted read-only in the API.
