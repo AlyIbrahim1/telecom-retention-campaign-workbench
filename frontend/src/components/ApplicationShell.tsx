@@ -5,6 +5,7 @@ const navigation = [
   { to: "/customers", label: "Customers", end: false },
   { to: "/imports", label: "Imports", end: false },
   { to: "/campaigns", label: "Campaigns", end: false },
+  { to: "/chat", label: "Chat", end: false },
 ];
 
 export function ApplicationShell() {

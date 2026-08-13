@@ -13,6 +13,7 @@ import { ImportDetailPage } from "../pages/ImportDetailPage";
 import { CampaignsPage } from "../pages/CampaignsPage";
 import { CampaignNewPage } from "../pages/CampaignNewPage";
 import { CampaignDetailPage } from "../pages/CampaignDetailPage";
+import { ChatPage } from "../pages/ChatPage";
 
 export const routes: RouteObject[] = [
   {
@@ -71,6 +72,10 @@ export const routes: RouteObject[] = [
           {
             path: "campaigns/:campaignId",
             element: <CampaignDetailPage />,
+          },
+          {
+            path: "chat",
+            element: <ChatPage />,
           },
         ],
       },

@@ -37,7 +37,7 @@ export function CustomerDetailPage() {
     <section className="page-stack detail-page" aria-labelledby="customer-details-title">
       <DetailHeader customerId={detail.customer.customer_id} />
       {message && <p className="success-message" role="status">{message}</p>}
-      <div className="detail-actions"><Link className="button-link" to={`/customers/${encodeURIComponent(detail.customer.customer_id)}/edit`}>Update and re-score</Link><Link className="button-link button-secondary" to="/customers">Back to customers</Link></div>
+      <div className="detail-actions"><Link className="button-link" to={`/customers/${encodeURIComponent(detail.customer.customer_id)}/edit`}>Update and re-score</Link><Link className="button-link button-secondary" to={`/chat?customerId=${encodeURIComponent(detail.customer.customer_id)}`}>Ask assistant</Link><Link className="button-link button-secondary" to="/customers">Back to customers</Link></div>
       <p className="record-meta"><strong>{detail.is_active ? "Active record" : "Inactive record"}</strong> · Version {detail.version} · Source {detail.source}</p>
 
       <section className="score-panel" aria-labelledby="score-title">
