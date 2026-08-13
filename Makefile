@@ -1,4 +1,4 @@
-.PHONY: start stop migrate migrate-down test test-backend test-frontend test-migrations
+.PHONY: start stop migrate migrate-down seed-demo test test-backend test-frontend test-migrations
 
 start:
 	docker compose up --build
@@ -11,6 +11,9 @@ migrate:
 
 migrate-down:
 	docker compose run --rm api alembic -c backend/alembic.ini downgrade -1
+
+seed-demo:
+	docker compose run --rm --no-deps api python scripts/seed_demo.py --api-url http://api:8000
 
 test: test-backend test-frontend test-migrations
 
