@@ -124,6 +124,9 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
+ evidence and the checks that still require Docker/PostgreSQL or a
+browser-runner are recorded in [release-checklist.md](release-checklist.md).
+
 ## Configuration boundary
 
 Settings are documented in `.env.example`. `DATABASE_URL` is required, the
