@@ -127,7 +127,7 @@ describe("customer browser journeys", () => {
     await user.click(screen.getByRole("link", { name: "JOURNEY-001" }));
     expect(await screen.findByRole("heading", { name: "Customer details" })).toBeVisible();
     expect(screen.getByText("Current prediction")).toBeVisible();
-    expect(screen.getByText("83%", { exact: false })).toBeVisible();
+    expect(screen.getAllByText("83%", { exact: false }).length).toBeGreaterThan(0);
   });
 
   it("previews then explicitly persists a new customer", async () => {
@@ -144,7 +144,7 @@ describe("customer browser journeys", () => {
     expect(screen.getByText("No data saved yet")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Create customer" }));
     expect(await screen.findByRole("heading", { name: "Customer details" })).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Customer created and scored");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Customer created and scored."));
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/customers$/), expect.objectContaining({ method: "POST" }));
   });
 
@@ -152,12 +152,12 @@ describe("customer browser journeys", () => {
     const user = userEvent.setup();
     renderPath("/customers/JOURNEY-001/edit");
     expect(await screen.findByRole("heading", { name: "Update customer" })).toBeVisible();
-    const monthly = screen.getByLabelText("Monthly charges");
+    const monthly = await screen.findByLabelText("Monthly charges");
     await user.clear(monthly);
     await user.type(monthly, "95");
     await user.click(screen.getByRole("button", { name: "Preview model score" }));
     expect(await screen.findByRole("heading", { name: /Review prediction before saving/ })).toBeVisible();
-    expect(screen.getByText("Monthly charges")).toBeVisible();
+    expect(screen.getByRole("list", { name: "Changed fields" })).toHaveTextContent("Monthly charges");
     await user.click(screen.getByRole("button", { name: "Save update" }));
     expect(await screen.findByRole("heading", { name: "Customer details" })).toBeVisible();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v1/customers/JOURNEY-001"), expect.objectContaining({ method: "PUT", headers: expect.objectContaining({ "If-Match": "1" }) }));

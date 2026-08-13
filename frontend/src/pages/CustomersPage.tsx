@@ -75,6 +75,9 @@ export function CustomersPage() {
   const customers = useQuery({
     queryKey: ["customers", query],
     queryFn: () => listCustomers(query),
+    // Keep the controls mounted while each keystroke starts a new request.
+    // The previous page remains useful context until the server responds.
+    placeholderData: (previous) => previous,
   });
 
   function updateFilter<T>(setter: Dispatch<SetStateAction<T | undefined>>, value: string) {
@@ -107,7 +110,10 @@ export function CustomersPage() {
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
   const hasFilters = Boolean(search || recommended || contract || internetService || freshness || outreachStatus || isActive);
 
-  if (customers.isPending) {
+  // Keep the existing table and controls mounted while a filter query is
+  // refreshing. Unmounting the search field on every keystroke would drop
+  // focus and make server-side search stop after the first character.
+  if (customers.isPending && !customers.data) {
     return (
       <section className="page-stack" aria-labelledby="customers-title">
         <PageHeader />

@@ -281,11 +281,11 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
                     <label className="form-field" key={field} htmlFor={field}>
                       <span>{FIELD_LABELS[field]} <span aria-hidden="true">*</span></span>
                       {options ? (
-                        <select id={field} value={values[field]} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)}>
+                        <select id={field} aria-label={FIELD_LABELS[field]} value={values[field]} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)}>
                           {options.map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
                       ) : (
-                        <input id={field} type={isNumber ? "number" : "text"} inputMode={field === "tenure" ? "numeric" : isNumber ? "decimal" : undefined} min={isNumber ? 0 : undefined} step={field === "tenure" ? 1 : "any"} value={values[field]} readOnly={mode === "update" && field === "customer_id"} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)} />
+                        <input id={field} aria-label={FIELD_LABELS[field]} type={isNumber ? "number" : "text"} inputMode={field === "tenure" ? "numeric" : isNumber ? "decimal" : undefined} min={isNumber ? 0 : undefined} step={field === "tenure" ? 1 : "any"} value={values[field]} readOnly={mode === "update" && field === "customer_id"} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)} />
                       )}
                       {errors[field] && <small id={`${field}-error`} className="field-error">{errors[field]}</small>}
                     </label>
@@ -314,7 +314,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
             <summary>View normalized account values</summary>
             <dl>{(Object.keys(DEFAULT_CUSTOMER) as FormField[]).map((field) => <div key={field}><dt>{FIELD_LABELS[field]}</dt><dd>{String(preview.normalized_customer[field])}</dd></div>)}</dl>
           </details>
-          {mode === "update" && <div className="change-summary"><strong>{changedFields.length ? `${changedFields.length} changed field${changedFields.length === 1 ? "" : "s"}` : "No field values changed"}</strong>{changedFields.length > 0 && <ul>{changedFields.map((field) => <li key={field}>{FIELD_LABELS[field]}</li>)}</ul>}</div>}
+          {mode === "update" && <div className="change-summary"><strong>{changedFields.length ? `${changedFields.length} changed field${changedFields.length === 1 ? "" : "s"}` : "No field values changed"}</strong>{changedFields.length > 0 && <ul aria-label="Changed fields">{changedFields.map((field) => <li key={field}>{FIELD_LABELS[field]}</li>)}</ul>}</div>}
           <div className="preview-actions"><button type="button" disabled={busy !== null} onClick={handlePersist}>{busy === "persist" ? "Saving…" : mode === "create" ? "Create customer" : "Save update"}</button><button type="button" className="button-secondary" onClick={() => setPreview(null)} disabled={busy !== null}>Keep editing</button></div>
         </section>
       )}
