@@ -255,3 +255,158 @@ class ImportRowOutcome(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     job: Mapped[ImportJob] = relationship(back_populates="row_outcomes")
+
+
+class Campaign(Base):
+    """Mutable campaign definition with immutable optimization snapshots."""
+
+    __tablename__ = "campaigns"
+    __table_args__ = (
+        CheckConstraint("length(name) BETWEEN 1 AND 120", name="ck_campaign_name_length"),
+        CheckConstraint("capacity > 0", name="ck_campaign_capacity_positive"),
+        CheckConstraint("status IN ('draft', 'optimized', 'confirmed', 'archived')", name="ck_campaign_status"),
+        Index("ix_campaigns_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", server_default="draft")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    latest_optimization_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+
+    optimization_runs: Mapped[list["OptimizationRun"]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="OptimizationRun.created_at"
+    )
+    overrides: Mapped[list["CampaignOverride"]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignOverride.created_at"
+    )
+    decisions: Mapped[list["OutreachDecision"]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="OutreachDecision.created_at"
+    )
+
+
+class OptimizationRun(Base):
+    """Immutable calculation context for one ranking pass."""
+
+    __tablename__ = "optimization_runs"
+    __table_args__ = (
+        CheckConstraint("monthly_weight >= 0 AND historical_weight >= 0", name="ck_optimization_weights_nonnegative"),
+        CheckConstraint("monthly_weight + historical_weight = 1", name="ck_optimization_weights_sum"),
+        CheckConstraint("eligible_count >= 0 AND recommended_count >= 0 AND unused_capacity >= 0", name="ck_optimization_counts_nonnegative"),
+        Index("ix_optimization_runs_campaign_created_at", "campaign_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    formula_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    monthly_weight: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    historical_weight: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    reference_population_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    eligible_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    recommended_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    unused_capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    model_versions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="optimization_runs")
+    recommendations: Mapped[list["CampaignRecommendation"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="CampaignRecommendation.rank"
+    )
+
+
+@event.listens_for(OptimizationRun, "before_update")
+def prevent_optimization_update(_mapper: Any, _connection: Any, _target: OptimizationRun) -> None:
+    raise ValueError("Optimization snapshots are immutable")
+
+
+@event.listens_for(OptimizationRun, "before_delete")
+def prevent_optimization_delete(_mapper: Any, _connection: Any, _target: OptimizationRun) -> None:
+    raise ValueError("Optimization snapshots are immutable")
+
+
+class CampaignRecommendation(Base):
+    """Immutable recommendation row tied to a prediction snapshot."""
+
+    __tablename__ = "campaign_recommendations"
+    __table_args__ = (
+        UniqueConstraint("optimization_run_id", "customer_id", name="uq_recommendation_run_customer"),
+        CheckConstraint("monthly_spend_percentile BETWEEN 0 AND 1", name="ck_recommendation_monthly_percentile"),
+        CheckConstraint("historical_spend_percentile BETWEEN 0 AND 1", name="ck_recommendation_historical_percentile"),
+        CheckConstraint("value_index BETWEEN 0 AND 1", name="ck_recommendation_value_index"),
+        CheckConstraint("priority_score BETWEEN 0 AND 100", name="ck_recommendation_priority_score"),
+        CheckConstraint("risk_score BETWEEN 0 AND 1", name="ck_recommendation_risk_score"),
+        CheckConstraint("rank > 0", name="ck_recommendation_rank_positive"),
+        Index("ix_recommendations_run_rank", "optimization_run_id", "rank"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    optimization_run_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("optimization_runs.id", ondelete="CASCADE"), nullable=False)
+    customer_uuid: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    prediction_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("predictions.id", ondelete="RESTRICT"), nullable=False)
+    monthly_charges: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
+    total_charges: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
+    monthly_spend_percentile: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    historical_spend_percentile: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    value_index: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
+    priority_score: Mapped[float] = mapped_column(Numeric(12, 8), nullable=False)
+    risk_score: Mapped[float] = mapped_column(Numeric(18, 16), nullable=False)
+    recommended_for_review: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    recommended: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    run: Mapped[OptimizationRun] = relationship(back_populates="recommendations")
+
+
+@event.listens_for(CampaignRecommendation, "before_update")
+def prevent_recommendation_update(_mapper: Any, _connection: Any, _target: CampaignRecommendation) -> None:
+    raise ValueError("Campaign recommendations are immutable")
+
+
+@event.listens_for(CampaignRecommendation, "before_delete")
+def prevent_recommendation_delete(_mapper: Any, _connection: Any, _target: CampaignRecommendation) -> None:
+    raise ValueError("Campaign recommendations are immutable")
+
+
+class CampaignOverride(Base):
+    __tablename__ = "campaign_overrides"
+    __table_args__ = (
+        CheckConstraint("action IN ('include', 'exclude')", name="ck_campaign_override_action"),
+        CheckConstraint("length(reason) BETWEEN 5 AND 500", name="ck_campaign_override_reason"),
+        Index("ix_campaign_overrides_campaign_created_at", "campaign_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(8), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    replacement_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False, default="local-demo-user")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="overrides")
+
+
+class OutreachDecision(Base):
+    """Append-only human decision event; no external outreach is performed."""
+
+    __tablename__ = "outreach_decisions"
+    __table_args__ = (Index("ix_outreach_decisions_campaign_customer", "campaign_id", "customer_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    recommendation_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaign_recommendations.id", ondelete="RESTRICT"), nullable=True)
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="decisions")

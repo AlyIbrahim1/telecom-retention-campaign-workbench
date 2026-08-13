@@ -40,7 +40,17 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
 
         command.upgrade(alembic, "head")
         tables = set(inspect(engine).get_table_names())
-        assert {"customers", "predictions", "import_jobs", "import_row_outcomes"} <= tables
+        assert {
+            "customers",
+            "predictions",
+            "import_jobs",
+            "import_row_outcomes",
+            "campaigns",
+            "optimization_runs",
+            "campaign_recommendations",
+            "campaign_overrides",
+            "outreach_decisions",
+        } <= tables
     finally:
         engine.dispose()
         with psycopg.connect(ADMIN_URL, autocommit=True) as connection:
