@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -19,6 +21,20 @@ from backend.app.schemas.imports import ImportJobResponse, ImportListResponse, I
 
 
 router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
+
+
+def _start_job(request: Request, job_id: UUID) -> None:
+    threading.Thread(
+        target=process_job,
+        kwargs={
+            "session_factory": request.app.state.session_factory,
+            "job_id": job_id,
+            "model_service": getattr(request.app.state, "model_service", None),
+            "settings": request.app.state.settings,
+        },
+        name=f"import-{job_id}",
+        daemon=True,
+    ).start()
 
 
 def _session(request: Request):
@@ -127,7 +143,10 @@ async def preflight(request: Request, mode: Literal["create", "update"] = Query(
 
 
 @router.post("", response_model=ImportJobResponse, status_code=202)
-async def upload_import(request: Request, mode: Literal["create", "update"] = Query(...)):
+async def upload_import(
+    request: Request,
+    mode: Literal["create", "update"] = Query(...),
+):
     """Upload and process in one bounded request for API clients without a UI."""
 
     key, key_error = _idempotency_key(request)
@@ -155,21 +174,28 @@ async def upload_import(request: Request, mode: Literal["create", "update"] = Qu
                 return _job_response(existing, rows=True)
             job, _parsed, _outcomes, _conflicts, _missing = preflight_bytes(session, content, filename=filename, mode=mode, settings=request.app.state.settings)
             job.idempotency_key = key
+            job.status = "queued"
+            job.confirmed_at = datetime.now(UTC)
             session.commit()
+            response = _job_response(job, rows=True)
         finally:
             session.close()
-        process_job(request.app.state.session_factory, job.id, model_service=getattr(request.app.state, "model_service", None), settings=request.app.state.settings)
-        fresh = request.app.state.session_factory()
-        try:
-            return _job_response(fresh.get(ImportJob, job.id), rows=True)
-        finally:
-            fresh.close()
+        _start_job(request, job.id)
+        return response
     except ImportValidationError as exc:
         return _error(request, exc)
 
 
 @router.get("", response_model=ImportListResponse)
-async def list_imports(request: Request, page: int = Query(1, ge=1), page_size: Literal[25, 50, 100] = Query(25)):
+async def list_imports(request: Request, page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
+    if page_size not in {25, 50, 100}:
+        return problem_response(
+            request,
+            status=422,
+            code="validation_failed",
+            title="Request validation failed",
+            detail="Page size must be 25, 50, or 100.",
+        )
     session = _session(request)
     if session is None:
         return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
@@ -207,20 +233,19 @@ async def confirm_import(request: Request, job_id: UUID):
         job = session.get(ImportJob, job_id)
         if job is None:
             return problem_response(request, status=404, code="not_found", title="Import not found", detail="The requested import job does not exist.")
-        if job.status not in {"ready", "queued"}:
+        if job.status != "ready":
             if job.idempotency_key == key:
                 return _job_response(job, rows=True)
             return problem_response(request, status=409, code="import_not_ready", title="Import is not ready", detail="Only a ready preflight can be confirmed.")
-        job.status = "queued"; job.idempotency_key = key; job.confirmed_at = __import__("datetime").datetime.now(__import__("datetime").UTC)
+        job.status = "queued"
+        job.idempotency_key = key
+        job.confirmed_at = datetime.now(UTC)
         session.commit()
+        response = _job_response(job, rows=True)
     finally:
         session.close()
-    process_job(request.app.state.session_factory, job_id, model_service=getattr(request.app.state, "model_service", None), settings=request.app.state.settings)
-    fresh = request.app.state.session_factory()
-    try:
-        return _job_response(fresh.get(ImportJob, job_id), rows=True)
-    finally:
-        fresh.close()
+    _start_job(request, job_id)
+    return response
 
 
 @router.post("/{job_id}/cancel", response_model=ImportJobResponse)

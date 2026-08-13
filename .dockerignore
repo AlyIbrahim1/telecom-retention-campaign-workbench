@@ -1,6 +1,7 @@
 .env
 .git
 .venv
+**/.venv
 .playwright-cli
 **/__pycache__
 **/*.pyc
@@ -8,4 +9,5 @@
 frontend/node_modules
 frontend/dist
 WA_Fn-UseC_-Telco-Customer-Churn.csv
+!WA_Fn-UseC_-Telco-Customer-Churn.csv
 teleco_churn_eda.ipynb

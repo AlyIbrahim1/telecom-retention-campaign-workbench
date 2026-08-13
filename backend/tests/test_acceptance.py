@@ -10,6 +10,7 @@ import csv
 import asyncio
 import io
 import json
+import time
 from pathlib import Path
 
 import httpx
@@ -146,7 +147,13 @@ async def _demo_journey():
                 headers={"Idempotency-Key": "accept-import"},
             )
             assert confirmed_import.status_code == 200, confirmed_import.text
-            assert confirmed_import.json()["status"] == "completed"
+            assert confirmed_import.json()["status"] == "queued"
+            import_result = await client.get(f"/api/v1/imports/{job_id}")
+            deadline = time.monotonic() + 10
+            while import_result.json()["status"] in {"queued", "running"} and time.monotonic() < deadline:
+                await asyncio.sleep(0.05)
+                import_result = await client.get(f"/api/v1/imports/{job_id}")
+            assert import_result.json()["status"] == "completed"
 
             campaign = await client.post(
                 "/api/v1/campaigns",

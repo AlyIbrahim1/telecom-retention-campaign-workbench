@@ -33,7 +33,6 @@ def test_claimed_authentication_is_rejected_until_implemented():
 @pytest.mark.parametrize(
     "values",
     [
-        {"_env_file": None},
         {**BASE, "cors_origin": "*"},
         {**BASE, "cors_origin": "http://127.0.0.1:5173/path"},
         {**BASE, "database_url": "sqlite:///unsafe.db"},
@@ -42,3 +41,10 @@ def test_claimed_authentication_is_rejected_until_implemented():
 def test_missing_or_unsafe_boundary_configuration_is_rejected(values):
     with pytest.raises(ValidationError):
         Settings(**values)
+
+
+def test_missing_database_configuration_is_rejected(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

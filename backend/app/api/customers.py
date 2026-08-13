@@ -255,7 +255,7 @@ def _add_prediction(
         threshold_policy_version=prediction.threshold_policy_version,
         scored_at=prediction.scored_at,
         source=source,
-        warnings=[warning.model_dump() for warning in prediction.warnings],
+        warnings=[warning.as_dict() for warning in prediction.warnings],
         success=True,
     )
     session.add(row)

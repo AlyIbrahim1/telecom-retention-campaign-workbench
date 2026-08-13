@@ -276,6 +276,20 @@ def seed(
     )
     if status != 202 or not isinstance(body, dict):
         raise ApiError(status, body)
+    job_id = body.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        raise RuntimeError("Training CSV import did not return a job ID")
+    deadline = time.monotonic() + request_timeout
+    while body.get("status") in {"ready", "queued", "running"} and time.monotonic() < deadline:
+        time.sleep(0.5)
+        status, body = request_json(
+            base_url,
+            "GET",
+            f"/api/v1/imports/{job_id}",
+            timeout=min(request_timeout, 10.0),
+        )
+        if status != 200 or not isinstance(body, dict):
+            raise ApiError(status, body)
     if body.get("status") != "completed":
         raise RuntimeError(
             "Training CSV import did not complete: "

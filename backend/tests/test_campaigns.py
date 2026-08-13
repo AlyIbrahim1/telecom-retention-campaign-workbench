@@ -201,10 +201,15 @@ def test_campaign_list_summary_includes_latest_run_and_selection_counts():
 
     async def call_list():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-            return await client.get("/api/v1/campaigns")
+            response = await client.get("/api/v1/campaigns?page=1&page_size=25&include_archived=true")
+            invalid = await client.get("/api/v1/campaigns?page=1&page_size=30")
+            return response, invalid
 
-    response = asyncio.run(call_list())
+    response, invalid = asyncio.run(call_list())
     assert response.status_code == 200, response.text
+    assert response.json()["page_size"] == 25
+    assert invalid.status_code == 422
+    assert invalid.json()["code"] == "validation_failed"
     item = next(item for item in response.json()["items"] if item["campaign_id"] == str(campaign_id))
     assert item["eligible_count"] == 2
     assert item["recommended_count"] == 1

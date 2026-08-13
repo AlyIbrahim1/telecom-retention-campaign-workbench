@@ -144,7 +144,15 @@ def _validate_body(request: Request, model, body: dict):
 
 
 @router.get("", response_model=CampaignListResponse)
-async def list_campaigns(request: Request, page: int = Query(1, ge=1), page_size: Literal[25, 50, 100] = Query(25), include_archived: bool = False):
+async def list_campaigns(request: Request, page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), include_archived: bool = False):
+    if page_size not in {25, 50, 100}:
+        return problem_response(
+            request,
+            status=422,
+            code="validation_failed",
+            title="Request validation failed",
+            detail="Page size must be 25, 50, or 100.",
+        )
     session = _session(request)
     if session is None:
         return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
