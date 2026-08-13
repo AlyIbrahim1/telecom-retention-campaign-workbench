@@ -5,6 +5,7 @@ from http import HTTPStatus
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -105,6 +106,30 @@ async def unexpected_exception_handler(
         code="internal_error",
         title="Internal server error",
         detail="The server could not complete the request.",
+    )
+
+
+async def database_exception_handler(
+    request: Request, exception: SQLAlchemyError
+) -> JSONResponse:
+    """Keep database outages generic and consistent at the HTTP boundary.
+
+    Routes still translate expected integrity conflicts to their domain error
+    codes.  Any unhandled driver/pool failure is an unavailable dependency,
+    not a server traceback or a JSON serialization error.
+    """
+
+    request.app.state.logger.error(
+        "database_request_error",
+        extra={"safe_event": "database_request_error"},
+    )
+    del exception
+    return problem_response(
+        request,
+        status=503,
+        code="service_unavailable",
+        title="Service unavailable",
+        detail="The required local service is not ready.",
     )
 
 

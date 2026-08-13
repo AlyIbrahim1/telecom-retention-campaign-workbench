@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.core.errors import problem_response
+from backend.app.core.validation import normalize_idempotency_key
 from backend.app.db.models import Campaign, CampaignOverride, CampaignRecommendation, CampaignSelection, IdempotencyRecord, OptimizationRun
 from backend.app.domain.campaigns import CampaignError, apply_override, confirm_campaign, latest_run, optimize_campaign, request_hash
 from backend.app.schemas.campaign import CampaignListResponse, CampaignOptimizeWrite, CampaignOverrideResponse, CampaignOverrideWrite, CampaignOptimizationResponse, CampaignRecommendationResponse, CampaignResponse, CampaignWrite
@@ -113,6 +114,28 @@ def _idempotency_replay(request: Request, session: Session, scope: str, key: str
     return JSONResponse(status_code=record.status_code, content=record.response_body)
 
 
+def _idempotency_key(request: Request, *, detail: str) -> tuple[str | None, JSONResponse | None]:
+    try:
+        key = normalize_idempotency_key(request.headers.get("Idempotency-Key"))
+    except ValueError:
+        return None, problem_response(
+            request,
+            status=400,
+            code="idempotency_key_invalid",
+            title="Invalid idempotency key",
+            detail="Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+        )
+    if key is None:
+        return None, problem_response(
+            request,
+            status=400,
+            code="idempotency_key_required",
+            title="Idempotency key required",
+            detail=detail,
+        )
+    return key, None
+
+
 def _validate_body(request: Request, model, body: dict):
     try:
         return model.model_validate(body)
@@ -165,9 +188,9 @@ async def list_campaigns(request: Request, page: int = Query(1, ge=1), page_size
 
 @router.post("", response_model=CampaignResponse, status_code=201)
 async def create_campaign(request: Request, body: dict):
-    key = request.headers.get("Idempotency-Key", "").strip()
-    if not key:
-        return problem_response(request, status=400, code="idempotency_key_required", title="Idempotency key required", detail="Provide an Idempotency-Key for campaign creation.")
+    key, key_error = _idempotency_key(request, detail="Provide an Idempotency-Key for campaign creation.")
+    if key_error is not None:
+        return key_error
     payload = _validate_body(request, CampaignWrite, body)
     if isinstance(payload, JSONResponse):
         return payload
@@ -313,8 +336,9 @@ async def remove_override(request: Request, campaign_id: UUID, override_id: UUID
 
 @router.post("/{campaign_id}/confirm", response_model=CampaignResponse)
 async def confirm(request: Request, campaign_id: UUID, if_match: str | None = Header(default=None, alias="If-Match")):
-    key = request.headers.get("Idempotency-Key", "").strip()
-    if not key: return problem_response(request, status=400, code="idempotency_key_required", title="Idempotency key required", detail="Provide an Idempotency-Key for confirmation.")
+    key, key_error = _idempotency_key(request, detail="Provide an Idempotency-Key for confirmation.")
+    if key_error is not None:
+        return key_error
     session = _session(request)
     if session is None: return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
     try:

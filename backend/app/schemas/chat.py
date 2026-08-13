@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.app.schemas.customer import CustomerInput
 from backend.app.schemas.prediction import PredictionResponse
@@ -86,16 +87,29 @@ class ChatConfirmResponse(BaseModel):
 class ChatToolCall(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str
+    name: str = Field(min_length=1, max_length=64)
     arguments: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("arguments")
+    @classmethod
+    def bound_arguments(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if len(value) > 20 or any(not isinstance(key, str) or len(key) > 64 for key in value):
+            raise ValueError("Tool arguments are too large")
+        try:
+            encoded = json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Tool arguments are not JSON-safe") from exc
+        if len(encoded.encode("utf-8")) > 32_768:
+            raise ValueError("Tool arguments are too large")
+        return value
 
 
 class ChatProviderResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    text: str = ""
-    tool_calls: list[ChatToolCall] = Field(default_factory=list)
-    response_id: str | None = None
+    text: str = Field(default="", max_length=20_000)
+    tool_calls: list[ChatToolCall] = Field(default_factory=list, max_length=4)
+    response_id: str | None = Field(default=None, max_length=128)
     refused: bool = False
 
 

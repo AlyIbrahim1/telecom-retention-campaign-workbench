@@ -24,6 +24,7 @@ from backend.app.db.models import (
     OptimizationRun,
     Prediction,
 )
+from backend.app.core.validation import normalize_idempotency_key, validate_confirmation_token
 from backend.app.ml.service import ModelService
 from backend.app.schemas.chat import ChatStagedActionResponse
 from backend.app.schemas.customer import CustomerInput, normalize_customer_payload
@@ -279,6 +280,16 @@ def stage_customer_action(
     model_service: ModelService,
     ttl_seconds: int,
 ) -> tuple[ChatStagedAction, str, CustomerInput, PredictionResponse]:
+    try:
+        idempotency_key = normalize_idempotency_key(idempotency_key)
+    except ValueError as exc:
+        raise ChatError(
+            "idempotency_key_invalid",
+            "Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+            400,
+        ) from exc
+    if idempotency_key is None:
+        raise ChatError("idempotency_key_required", "Provide an Idempotency-Key for this staged action.", 400)
     if action_type not in {"create", "update"}:
         raise ChatError("chat_tool_not_allowed", "That chatbot capability is not available.", 403)
     if action_type == "update" and expected_version is None:
@@ -346,6 +357,10 @@ def confirm_staged_action(
     model_sha256: str,
     correlation_id: str | None = None,
 ) -> tuple[Customer, Prediction, PredictionResponse]:
+    try:
+        confirmation_token = validate_confirmation_token(confirmation_token)
+    except ValueError as exc:
+        raise ChatError("staged_action_invalid", "The confirmation token is invalid.", 409) from exc
     if session_id is not None and action.session_id != session_id:
         raise ChatError("staged_action_invalid", "This staged action belongs to another chat session.", 409)
     if action.status != "pending":

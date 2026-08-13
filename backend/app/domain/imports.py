@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
@@ -38,6 +39,26 @@ class ImportValidationError(ValueError):
         super().__init__(message)
         self.code = code
         self.field = field
+
+
+_UNSAFE_FILENAME_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def safe_upload_filename(value: Any) -> str:
+    """Keep filename metadata safe without using it for filesystem paths."""
+
+    if not isinstance(value, str):
+        raise ImportValidationError("import_file_invalid", "Upload a comma-separated UTF-8 CSV file.")
+    # Browsers may send a full Windows path.  Store only its final component;
+    # the application never uses this value as a temporary filesystem name.
+    filename = value.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not filename or _UNSAFE_FILENAME_CHARACTERS.search(filename):
+        raise ImportValidationError("import_file_invalid", "The uploaded filename is invalid.")
+    if len(filename) > 255:
+        raise ImportValidationError("import_limit_exceeded", "The uploaded filename is too long.")
+    if not filename.lower().endswith(".csv"):
+        raise ImportValidationError("import_file_invalid", "Upload a comma-separated UTF-8 CSV file.")
+    return filename
 
 
 @dataclass
@@ -164,6 +185,7 @@ def preflight_bytes(session: Session, content: bytes, *, filename: str, mode: st
     )
     if active is not None:
         raise ImportValidationError("import_already_active", "Only one import job may be active in the local pilot.")
+    filename = safe_upload_filename(filename)
     parsed = _parse_csv(content, settings)
     duplicate_ids = _duplicate_ids(parsed.rows)
     ids = sorted({(row.get("customerID") or row.get("customer_id") or "").strip().upper() for row in parsed.rows if (row.get("customerID") or row.get("customer_id"))})

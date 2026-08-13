@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     app_env: Literal["local", "test", "staging", "production"] = "local"
     auth_enabled: bool = False
     database_url: SecretStr
+    database_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
     cors_origin: AnyHttpUrl = "http://127.0.0.1:5173"
     max_request_bytes: int = Field(default=11_000_000, ge=1)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

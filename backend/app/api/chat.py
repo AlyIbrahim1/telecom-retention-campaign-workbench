@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.chat.provider import OpenAIResponsesProvider, ProviderRateLimit, ProviderRefusal, ProviderTimeout, ProviderUnavailable
 from backend.app.core.errors import problem_response
+from backend.app.core.validation import normalize_idempotency_key, validate_confirmation_token
 from backend.app.db.models import Campaign, ChatMessage, ChatSession, ChatStagedAction, ChatToolAudit, Customer, IdempotencyRecord
 from backend.app.domain.chat import (
     TOOL_DEFINITIONS,
@@ -244,7 +245,15 @@ def _stage_from_tool(session: Session, chat: ChatSession, name: str, args: dict[
     expected_version = args.get("expected_version")
     if not isinstance(customer, dict) or (action == "update" and not isinstance(expected_version, int)):
         raise ChatError("staged_action_invalid", "The preview arguments need correction.", 409)
-    provider_key = request.headers.get("Idempotency-Key", "").strip() or f"chat-stage-{message.id}"
+    try:
+        provider_key = normalize_idempotency_key(request.headers.get("Idempotency-Key"))
+    except ValueError as exc:
+        raise ChatError(
+            "idempotency_key_invalid",
+            "Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+            400,
+        ) from exc
+    provider_key = provider_key or f"chat-stage-{message.id}"
     model_service = getattr(request.app.state, "model_service", None)
     if model_service is None:
         raise ChatError("model_unavailable", "The local model is not ready.", 503)
@@ -287,13 +296,19 @@ async def post_message(
         if provider is None:
             raise ProviderUnavailable
         try:
-            # The adapter applies a bounded client timeout.  Keep the route
-            # synchronous here so local ASGI/test lifespans do not leak a
-            # worker executor; streaming remains available through events.
-            provider_result = provider.respond(
-                _provider_messages(session, chat, content.strip(), request.app.state.settings.chat_context_messages),
-                TOOL_DEFINITIONS,
+            provider_messages = _provider_messages(
+                session,
+                chat,
+                content.strip(),
+                request.app.state.settings.chat_context_messages,
             )
+            # The production adapter exposes a native async call.  Small test
+            # doubles can keep the simple synchronous protocol without
+            # creating a process-lingering thread pool.
+            if hasattr(provider, "arespond"):
+                provider_result = await provider.arespond(provider_messages, TOOL_DEFINITIONS)
+            else:
+                provider_result = provider.respond(provider_messages, TOOL_DEFINITIONS)
             if isinstance(provider_result, dict):
                 provider_result = ChatProviderResponse.model_validate(provider_result)
             if not isinstance(provider_result, ChatProviderResponse):
@@ -406,7 +421,20 @@ async def session_events(request: Request, session_id: UUID):
 def _confirmation_values(request: Request, body: Any) -> tuple[str | None, str]:
     payload = body if isinstance(body, dict) else {}
     token = request.headers.get("X-Confirmation-Token") or payload.get("confirmation_token")
-    key = request.headers.get("Idempotency-Key", "").strip()
+    key = request.headers.get("Idempotency-Key")
+    try:
+        key = normalize_idempotency_key(key) or ""
+    except ValueError as exc:
+        raise ChatError(
+            "idempotency_key_invalid",
+            "Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+            400,
+        ) from exc
+    if token is not None:
+        try:
+            token = validate_confirmation_token(token)
+        except ValueError as exc:
+            raise ChatError("staged_action_invalid", "The confirmation token is invalid.", 409) from exc
     return token, key
 
 
@@ -422,7 +450,10 @@ def _optional_session_id(body: Any) -> UUID | None:
 
 @router.post("/staged-actions/{action_id}/confirm")
 async def confirm_action(request: Request, action_id: UUID, body: dict[str, Any] | None = None):
-    token, key = _confirmation_values(request, body)
+    try:
+        token, key = _confirmation_values(request, body)
+    except ChatError as exc:
+        return _error(request, exc)
     try:
         requested_session_id = _optional_session_id(body)
     except ChatError as exc:
@@ -491,7 +522,10 @@ async def confirm_action(request: Request, action_id: UUID, body: dict[str, Any]
 
 @router.post("/staged-actions/{action_id}/cancel")
 async def cancel_action(request: Request, action_id: UUID, body: dict[str, Any] | None = None):
-    token, _key = _confirmation_values(request, body)
+    try:
+        token, _key = _confirmation_values(request, body)
+    except ChatError as exc:
+        return _error(request, exc)
     session = _session(request)
     if session is None:
         return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")
@@ -534,7 +568,17 @@ async def direct_stage_action(request: Request, session_id: UUID, body: dict[str
         expected = body.get("expected_version")
         if action == "update" and not isinstance(expected, int):
             raise ChatError("staged_action_invalid", "An expected customer version is required for updates.", 409)
-        key = request.headers.get("Idempotency-Key", "").strip() or body.get("idempotency_key") or f"chat-stage-{uuid4()}"
+        try:
+            key = normalize_idempotency_key(request.headers.get("Idempotency-Key"))
+            if key is None:
+                key = normalize_idempotency_key(body.get("idempotency_key"))
+        except ValueError as exc:
+            raise ChatError(
+                "idempotency_key_invalid",
+                "Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+                400,
+            ) from exc
+        key = key or f"chat-stage-{uuid4()}"
         model_service = getattr(request.app.state, "model_service", None)
         if model_service is None:
             raise ChatError("model_unavailable", "The local model is not ready.", 503)

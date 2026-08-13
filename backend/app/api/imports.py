@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import desc, func, select
 
 from backend.app.core.errors import problem_response
-from backend.app.domain.imports import ImportValidationError, job_export, preflight_bytes, process_job, template_csv
+from backend.app.core.validation import normalize_idempotency_key
+from backend.app.domain.imports import ImportValidationError, job_export, preflight_bytes, process_job, safe_upload_filename, template_csv
 from backend.app.db.models import ImportJob, ImportRowOutcome
 from backend.app.schemas.imports import ImportJobResponse, ImportListResponse, ImportPreflightResponse, ImportRowReport
 
@@ -58,8 +59,8 @@ async def _file_form(request: Request) -> tuple[bytes, str]:
         if upload is None or not hasattr(upload, "read"):
             raise ImportValidationError("import_file_invalid", "Provide one CSV file in the file field.")
         content_type = str(getattr(upload, "content_type", "") or "").lower()
-        filename = str(getattr(upload, "filename", "import.csv") or "import.csv")
-        if not filename.lower().endswith(".csv") or content_type not in {"", "text/csv", "application/csv", "text/plain", "application/octet-stream"}:
+        filename = safe_upload_filename(str(getattr(upload, "filename", "import.csv") or "import.csv"))
+        if content_type not in {"", "text/csv", "application/csv", "text/plain", "application/octet-stream"}:
             raise ImportValidationError("import_file_invalid", "Upload a comma-separated UTF-8 CSV file.")
         content = await upload.read()
         return content, filename
@@ -77,6 +78,28 @@ def _error(request: Request, exc: ImportValidationError) -> JSONResponse:
         "idempotency_conflict",
     } else 422
     return problem_response(request, status=status, code=exc.code, title="Import could not be processed", detail=str(exc))
+
+
+def _idempotency_key(request: Request) -> tuple[str | None, JSONResponse | None]:
+    try:
+        key = normalize_idempotency_key(request.headers.get("Idempotency-Key"))
+    except ValueError:
+        return None, problem_response(
+            request,
+            status=400,
+            code="idempotency_key_invalid",
+            title="Invalid idempotency key",
+            detail="Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+        )
+    if key is None:
+        return None, problem_response(
+            request,
+            status=400,
+            code="idempotency_key_required",
+            title="Idempotency key required",
+            detail="Provide an Idempotency-Key for this import.",
+        )
+    return key, None
 
 
 @router.get("/template")
@@ -107,9 +130,9 @@ async def preflight(request: Request, mode: Literal["create", "update"] = Query(
 async def upload_import(request: Request, mode: Literal["create", "update"] = Query(...)):
     """Upload and process in one bounded request for API clients without a UI."""
 
-    key = request.headers.get("Idempotency-Key", "").strip()
-    if not key:
-        return problem_response(request, status=400, code="idempotency_key_required", title="Idempotency key required", detail="Provide an Idempotency-Key for this import.")
+    key, key_error = _idempotency_key(request)
+    if key_error is not None:
+        return key_error
     try:
         content, filename = await _file_form(request)
         session = _session(request)
@@ -174,9 +197,9 @@ async def get_import(request: Request, job_id: UUID):
 
 @router.post("/{job_id}/confirm", response_model=ImportJobResponse)
 async def confirm_import(request: Request, job_id: UUID):
-    key = request.headers.get("Idempotency-Key", "").strip()
-    if not key:
-        return problem_response(request, status=400, code="idempotency_key_required", title="Idempotency key required", detail="Provide an Idempotency-Key for confirmation.")
+    key, key_error = _idempotency_key(request)
+    if key_error is not None:
+        return key_error
     session = _session(request)
     if session is None:
         return problem_response(request, status=503, code="service_unavailable", title="Service unavailable", detail="The database is not ready.")

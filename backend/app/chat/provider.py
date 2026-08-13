@@ -73,6 +73,39 @@ class OpenAIResponsesProvider:
             # Do not expose provider details in logs or HTTP responses.
             raise ProviderUnavailable from exc
 
+        return self._response_payload(response)
+
+    async def arespond(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatProviderResponse:
+        """Use the SDK's native async client for the FastAPI request path."""
+
+        key = self.api_key.get_secret_value() if hasattr(self.api_key, "get_secret_value") else str(self.api_key or "")
+        if not key.strip():
+            raise ProviderUnavailable("OpenAI API key is not configured")
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(api_key=key, timeout=self.timeout_seconds)
+            response = await client.responses.create(
+                model=self.model,
+                input=messages,
+                tools=tools,
+                max_output_tokens=self.max_output_tokens,
+            )
+        except TimeoutError as exc:  # pragma: no cover - provider-specific
+            raise ProviderTimeout from exc
+        except Exception as exc:  # pragma: no cover - SDK/network details vary
+            name = type(exc).__name__.lower()
+            if getattr(exc, "status_code", None) == 429 or "rate" in name:
+                raise ProviderRateLimit from exc
+            if "timeout" in name:
+                raise ProviderTimeout from exc
+            if "refus" in name:
+                raise ProviderRefusal from exc
+            raise ProviderUnavailable from exc
+        return self._response_payload(response)
+
+    @staticmethod
+    def _response_payload(response: Any) -> ChatProviderResponse:
         calls: list[ChatToolCall] = []
         for item in getattr(response, "output", []) or []:
             if getattr(item, "type", None) != "function_call":

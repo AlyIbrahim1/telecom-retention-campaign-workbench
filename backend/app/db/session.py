@@ -6,8 +6,14 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 
-def create_database_engine(database_url: str) -> Engine:
-    return create_engine(database_url, pool_pre_ping=True)
+def create_database_engine(database_url: str, *, connect_timeout_seconds: int = 3) -> Engine:
+    """Create a pooled engine with a bounded initial connection attempt."""
+
+    return create_engine(
+        database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": connect_timeout_seconds},
+    )
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

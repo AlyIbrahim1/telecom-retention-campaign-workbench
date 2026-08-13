@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.api.health import router as health_router
@@ -17,6 +18,7 @@ from backend.app.api.chat import router as chat_router
 from backend.app.chat.provider import OpenAIResponsesProvider
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.errors import (
+    database_exception_handler,
     http_exception_handler,
     unexpected_exception_handler,
     validation_exception_handler,
@@ -53,7 +55,10 @@ def create_app(
             settings.chat_max_output_tokens,
         )
         if database_check is None:
-            engine = create_database_engine(settings.database_url.get_secret_value())
+            engine = create_database_engine(
+                settings.database_url.get_secret_value(),
+                connect_timeout_seconds=settings.database_connect_timeout_seconds,
+            )
             app.state.database_check = lambda: database_is_ready(engine)
             app.state.session_factory = session_factory or create_session_factory(engine)
         else:
@@ -96,6 +101,7 @@ def create_app(
     app.state.chat_provider = chat_provider
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, database_exception_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)
     app.include_router(health_router)
     app.include_router(customer_router)

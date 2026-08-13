@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from backend.app.core.errors import problem_response
+from backend.app.core.validation import normalize_idempotency_key
 from backend.app.db.models import AuditEvent, Customer, IdempotencyRecord, Prediction
 from backend.app.ml.service import ModelLoadError
 from backend.app.schemas.customer import (
@@ -89,6 +90,22 @@ def _missing_idempotency(request: Request) -> JSONResponse:
         title="Idempotency key required",
         detail="Provide an Idempotency-Key for this write.",
     )
+
+
+def _idempotency_key(request: Request, value: str | None) -> tuple[str | None, JSONResponse | None]:
+    try:
+        key = normalize_idempotency_key(value)
+    except ValueError:
+        return None, problem_response(
+            request,
+            status=400,
+            code="idempotency_key_invalid",
+            title="Invalid idempotency key",
+            detail="Idempotency-Key must be visible ASCII text no longer than 128 characters.",
+        )
+    if key is None:
+        return None, _missing_idempotency(request)
+    return key, None
 
 
 def _service_unavailable(request: Request, *, code: str = "service_unavailable") -> JSONResponse:
@@ -505,8 +522,9 @@ async def create_customer(
     body: dict[str, Any] = Body(...),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    if not idempotency_key or not idempotency_key.strip():
-        return _missing_idempotency(request)
+    idempotency_key, key_error = _idempotency_key(request, idempotency_key)
+    if key_error is not None:
+        return key_error
     normalized = _normalise(body, request)
     if isinstance(normalized, JSONResponse):
         return normalized
@@ -526,7 +544,7 @@ async def create_customer(
             existing_key = session.scalar(
                 select(IdempotencyRecord).where(
                     IdempotencyRecord.scope == "customer:create",
-                    IdempotencyRecord.key == idempotency_key.strip(),
+                    IdempotencyRecord.key == idempotency_key,
                 )
             )
             if existing_key is not None:
@@ -562,7 +580,7 @@ async def create_customer(
                 source="form",
                 before=None,
                 after=normalized.customer.model_dump(mode="json"),
-                idempotency_key=idempotency_key.strip(),
+                idempotency_key=idempotency_key,
             )
             session.flush()
             response = CustomerWriteResponse(
@@ -572,7 +590,7 @@ async def create_customer(
             session.add(
                 IdempotencyRecord(
                     scope="customer:create",
-                    key=idempotency_key.strip(),
+                    key=idempotency_key,
                     request_hash=request_hash,
                     status_code=201,
                     response_body=response.model_dump(mode="json"),
@@ -702,8 +720,9 @@ async def update_customer(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     if_match: str | None = Header(default=None, alias="If-Match"),
 ):
-    if not idempotency_key or not idempotency_key.strip():
-        return _missing_idempotency(request)
+    idempotency_key, key_error = _idempotency_key(request, idempotency_key)
+    if key_error is not None:
+        return key_error
     if not if_match:
         return problem_response(request, status=400, code="invalid_request", title="Expected version required", detail="Provide If-Match with the current customer version.")
     try:
@@ -729,7 +748,7 @@ async def update_customer(
     request_hash = _request_hash(normalized.customer, mode="update", expected_version=expected_version)
     try:
         with session.begin():
-            existing_key = session.scalar(select(IdempotencyRecord).where(IdempotencyRecord.scope == "customer:update", IdempotencyRecord.key == idempotency_key.strip()))
+            existing_key = session.scalar(select(IdempotencyRecord).where(IdempotencyRecord.scope == "customer:update", IdempotencyRecord.key == idempotency_key))
             if existing_key is not None:
                 replay = _problem_for_existing_key(request, existing_key, request_hash)
                 if replay is not None:
@@ -748,10 +767,10 @@ async def update_customer(
             customer.source = "form"
             session.flush()
             prediction_row = _add_prediction(session, customer, normalized.customer, prediction, request, "form", service.metadata.model_sha256)
-            _audit(session, customer, request, action="customer_updated", source="form", before=before, after={**normalized.customer.model_dump(mode="json"), "version": customer.version}, idempotency_key=idempotency_key.strip())
+            _audit(session, customer, request, action="customer_updated", source="form", before=before, after={**normalized.customer.model_dump(mode="json"), "version": customer.version}, idempotency_key=idempotency_key)
             session.flush()
             response = CustomerWriteResponse(customer=_customer_record(customer, prediction_row), prediction=prediction)
-            session.add(IdempotencyRecord(scope="customer:update", key=idempotency_key.strip(), request_hash=request_hash, status_code=200, response_body=response.model_dump(mode="json")))
+            session.add(IdempotencyRecord(scope="customer:update", key=idempotency_key, request_hash=request_hash, status_code=200, response_body=response.model_dump(mode="json")))
             return response
     except IntegrityError:
         session.rollback()
