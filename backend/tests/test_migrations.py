@@ -39,8 +39,8 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
             assert connection.scalar(text("SELECT count(*) FROM alembic_version")) == 0
 
         command.upgrade(alembic, "head")
-            assert "customers" in inspect(engine).get_table_names()
-            assert "predictions" in inspect(engine).get_table_names()
+        assert "customers" in inspect(engine).get_table_names()
+        assert "predictions" in inspect(engine).get_table_names()
     finally:
         engine.dispose()
         with psycopg.connect(ADMIN_URL, autocommit=True) as connection:
