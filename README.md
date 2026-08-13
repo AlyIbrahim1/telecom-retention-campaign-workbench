@@ -26,6 +26,9 @@ preview and require a one-time confirmation token plus idempotency key; no
 campaign confirmation or external outreach is available. Without
 `OPENAI_API_KEY`, chat reports a safe unavailable state while the rest of the
 workspace remains usable.
+ adds a synthetic demo seed and a reproducible local handoff walkthrough;
+see the [pilot operator guide](pilot-operator-guide.md) for the complete
+create-to-chat path, recovery steps, known limitations, and version convention.
 
 ## Prerequisites
 
@@ -126,6 +129,8 @@ npm --prefix frontend run build
 
  evidence and the checks that still require Docker/PostgreSQL or a
 browser-runner are recorded in [release-checklist.md](release-checklist.md).
+The  fresh-clone, seed, demo, and safe-shutdown workflow is documented
+in [pilot-operator-guide.md](pilot-operator-guide.md).
 
 ## Configuration boundary
 
