@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    LargeBinary,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -192,3 +193,65 @@ class IdempotencyRecord(Base):
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     response_body: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ImportJob(Base):
+    """Metadata and lifecycle for one bounded CSV preflight/process run."""
+
+    __tablename__ = "import_jobs"
+    __table_args__ = (
+        CheckConstraint("mode IN ('create', 'update')", name="ck_import_job_mode"),
+        CheckConstraint(
+            "status IN ('uploaded', 'validating', 'ready', 'queued', 'running', 'completed', 'partially_completed', 'failed', 'cancelled')",
+            name="ck_import_job_status",
+        ),
+        Index("ix_import_jobs_created_at", "created_at"),
+        Index("ix_import_jobs_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_csv: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    mode: Mapped[str] = mapped_column(String(8), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ready")
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    total_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    valid_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    invalid_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    row_outcomes: Mapped[list["ImportRowOutcome"]] = relationship(
+        back_populates="job", cascade="all, delete-orphan", order_by="ImportRowOutcome.row_number"
+    )
+
+
+class ImportRowOutcome(Base):
+    """One deterministic source row result; no raw upload is retained."""
+
+    __tablename__ = "import_row_outcomes"
+    __table_args__ = (
+        UniqueConstraint("import_job_id", "row_number", name="uq_import_row_job_number"),
+        Index("ix_import_row_outcomes_job_status", "import_job_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    import_job_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    normalized_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    warnings: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False, default=list)
+    errors: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False, default=list)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    job: Mapped[ImportJob] = relationship(back_populates="row_outcomes")

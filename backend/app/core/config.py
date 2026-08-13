@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     model_path: Path = DEFAULT_MODEL_PATH
     model_sha256: str = DEFAULT_MODEL_SHA256
+    import_max_file_bytes: int = Field(default=10_000_000, ge=1)
+    import_max_rows: int = Field(default=10_000, ge=1)
+    import_max_columns: int = Field(default=30, ge=1)
+    import_chunk_size: int = Field(default=500, ge=1)
 
     @field_validator("database_url")
     @classmethod

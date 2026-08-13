@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.api.health import router as health_router
 from backend.app.api.customers import router as customer_router
+from backend.app.api.imports import router as imports_router
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.errors import (
     http_exception_handler,
@@ -87,6 +88,7 @@ def create_app(
     app.add_exception_handler(Exception, unexpected_exception_handler)
     app.include_router(health_router)
     app.include_router(customer_router)
+    app.include_router(imports_router)
 
     app.add_middleware(
         CORSMiddleware,

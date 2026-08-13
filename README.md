@@ -12,7 +12,9 @@ validation, atomic create/update-and-score routes, immutable prediction
 snapshots, audit history, idempotency, optimistic update versions, and startup
 verification for the read-only model bundle.  adds the customer list,
 detail/history view, and explicit create/update forms with preview-before-save.
-Imports, campaigns, and chat remain in their documented later stages.
+ adds bounded CSV template, preflight, confirmation, progress,
+partial-success, cancellation, and formula-safe result/error exports.
+Campaigns and chat remain in their documented later stages.
 
 ## Prerequisites
 
@@ -71,15 +73,21 @@ Revert the most recent migration without deleting the database volume:
 make migrate-down
 ```
 
-The  revision is intentionally empty;  introduces domain tables.
+The  revision is intentionally empty;  introduces domain tables
+and  adds `import_jobs` and `import_row_outcomes`.
 
-/3 API routes are available under `/api/v1`: `GET /customers` provides
+/3/4 API routes are available under `/api/v1`: `GET /customers` provides
 bounded server-side search, filters, stable sorting, and 25/50/100-row
 pagination; `POST /customers/preview`, `POST /customers`,
 `GET /customers/{customer_id}`, explicit update preview and update routes,
 prediction history, audit history, model metadata, and the canonical customer
 schema are also available. Create/update writes require an `Idempotency-Key`;
-updates also require `If-Match` with the current integer version.
+updates also require `If-Match` with the current integer version. Import routes
+include `GET /imports/template`, `POST /imports/preflight`, `GET /imports`,
+`GET /imports/{job_id}`, explicit `POST /imports/{job_id}/confirm` and
+`/cancel`, and result/error CSV downloads. Import mode is always explicit:
+`create` rejects existing IDs and `update` rejects missing IDs; mixed upsert is
+not supported.
 
 ## Tests
 
@@ -144,6 +152,6 @@ without guessing the customer data model early.
 - `teleco_churn_eda.ipynb` — analysis and model-training source of truth.
 - `app/` —  reference inference CLI; kept unchanged until .
 - `backend/` — FastAPI, settings, safety middleware, database, migrations, tests.
-- `frontend/` — accessible React shell and  customer workflow.
+- `frontend/` — accessible React shell,  customer workflow, and  import workflow.
 - `` — approved product plan, contracts, stages, and model evidence.
 - `models/` — trusted exported Joblib bundle; mounted read-only in the API.
