@@ -58,7 +58,8 @@ it("renders the accessible persistent shell and active navigation", async () => 
   renderPath("/customers");
 
   await screen.findByRole("heading", { name: "Customers" });
-  expect(screen.getByText("PILOT — SAMPLE OR APPROVED TEST DATA ONLY")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Retention Campaign Workbench overview" })).toBeVisible();
+  expect(screen.queryByText(/pilot|sample or approved test data/i)).not.toBeInTheDocument();
   expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
   expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
   expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute(
@@ -75,8 +76,8 @@ it("keeps the shell visible during loading", () => {
   vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
   renderPath("/");
 
-  expect(screen.getByRole("status")).toHaveTextContent("Checking the local API");
-  expect(screen.getByText("PILOT — SAMPLE OR APPROVED TEST DATA ONLY")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Connecting to customer and campaign services");
+  expect(screen.getByRole("link", { name: "Retention Campaign Workbench overview" })).toBeVisible();
 });
 
 it("shows a safe unavailable state and retries", async () => {
@@ -87,7 +88,7 @@ it("shows a safe unavailable state and retries", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderPath("/");
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("local API or database");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Customer and campaign services");
   expect(screen.queryByText("raw private failure")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("heading", { name: "Campaign overview" })).toBeVisible();
@@ -104,7 +105,7 @@ it("renders a shell-preserving not-found page", () => {
     "href",
     "/",
   );
-  expect(screen.getByText("PILOT — SAMPLE OR APPROVED TEST DATA ONLY")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Retention Campaign Workbench overview" })).toBeVisible();
 });
 
 it.each(["/customers", "/does-not-exist"])(

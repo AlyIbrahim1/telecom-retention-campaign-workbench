@@ -27,6 +27,8 @@
 .import-status-panel,
 .import-outcomes {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--space-lg);
   padding: clamp(var(--space-xl), 4vw, var(--space-2xl));
   border: 1px solid var(--color-border);
@@ -37,7 +39,13 @@
 
 .import-step > .section-heading,
 .import-outcomes > .section-heading {
+  min-width: 0;
   max-width: 70ch;
+}
+
+.import-step .section-heading p,
+.import-outcomes .section-heading p {
+  overflow-wrap: anywhere;
 }
 
 .file-picker {
@@ -67,6 +75,9 @@
 }
 
 .file-picker input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 2.75rem;
   font: inherit;
 }
