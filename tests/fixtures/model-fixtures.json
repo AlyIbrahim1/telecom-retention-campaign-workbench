@@ -1,0 +1,89 @@
+[
+  {
+    "name": "high-risk-monthly-fiber",
+    "input": {
+      "customerID": "FIXTURE-HIGH-001",
+      "gender": "Female",
+      "SeniorCitizen": "No",
+      "Partner": "Yes",
+      "Dependents": "No",
+      "tenure": 3,
+      "PhoneService": "Yes",
+      "MultipleLines": "No",
+      "InternetService": "Fiber optic",
+      "OnlineSecurity": "No",
+      "OnlineBackup": "No",
+      "DeviceProtection": "No",
+      "TechSupport": "No",
+      "StreamingTV": "Yes",
+      "StreamingMovies": "Yes",
+      "Contract": "Month-to-month",
+      "PaperlessBilling": "Yes",
+      "PaymentMethod": "Electronic check",
+      "MonthlyCharges": 89.5,
+      "TotalCharges": 268.5
+    },
+    "expected": {
+      "risk_score": 0.9040385882771118,
+      "recommended_for_review": true
+    }
+  },
+  {
+    "name": "established-two-year-dsl",
+    "input": {
+      "customerID": "FIXTURE-LOW-001",
+      "gender": "Female",
+      "SeniorCitizen": "No",
+      "Partner": "Yes",
+      "Dependents": "Yes",
+      "tenure": 72,
+      "PhoneService": "Yes",
+      "MultipleLines": "Yes",
+      "InternetService": "DSL",
+      "OnlineSecurity": "Yes",
+      "OnlineBackup": "Yes",
+      "DeviceProtection": "Yes",
+      "TechSupport": "Yes",
+      "StreamingTV": "Yes",
+      "StreamingMovies": "Yes",
+      "Contract": "Two year",
+      "PaperlessBilling": "No",
+      "PaymentMethod": "Bank transfer (automatic)",
+      "MonthlyCharges": 70.0,
+      "TotalCharges": 5040.0
+    },
+    "expected": {
+      "risk_score": 0.04921789147202778,
+      "recommended_for_review": false
+    }
+  },
+  {
+    "name": "new-phone-and-internet-free",
+    "input": {
+      "customerID": "FIXTURE-NEW-001",
+      "gender": "Male",
+      "SeniorCitizen": "No",
+      "Partner": "No",
+      "Dependents": "No",
+      "tenure": 0,
+      "PhoneService": "No",
+      "MultipleLines": "No phone service",
+      "InternetService": "No",
+      "OnlineSecurity": "No internet service",
+      "OnlineBackup": "No internet service",
+      "DeviceProtection": "No internet service",
+      "TechSupport": "No internet service",
+      "StreamingTV": "No internet service",
+      "StreamingMovies": "No internet service",
+      "Contract": "Month-to-month",
+      "PaperlessBilling": "No",
+      "PaymentMethod": "Mailed check",
+      "MonthlyCharges": 18.25,
+      "TotalCharges": 0.0
+    },
+    "expected": {
+      "risk_score": 0.5462836189899382,
+      "recommended_for_review": true
+    }
+  }
+]

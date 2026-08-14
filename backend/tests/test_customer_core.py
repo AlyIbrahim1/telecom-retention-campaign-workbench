@@ -1,4 +1,4 @@
-""" contract evidence using an in-memory SQLAlchemy database."""
+"""Customer-core contract evidence using an in-memory SQLAlchemy database."""
 
 from __future__ import annotations
 

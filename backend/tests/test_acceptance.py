@@ -1,4 +1,4 @@
-""" route-level acceptance journey for the local pilot demo.
+"""Route-level acceptance journey for the local pilot demo.
 
 The test keeps the full workflow in one place so a future change cannot make
 the documented demo path silently skip a confirmation boundary.

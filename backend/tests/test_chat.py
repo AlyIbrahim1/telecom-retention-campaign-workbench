@@ -1,4 +1,4 @@
-""" grounded-chat and one-time customer-write evidence."""
+"""Grounded-chat and one-time customer-write evidence."""
 
 from __future__ import annotations
 

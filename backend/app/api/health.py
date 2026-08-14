@@ -28,7 +28,7 @@ async def ready(request: Request):
         database_ready = False
 
     model_status = getattr(request.app.state, "model_status", "not_configured")
-    # 's injected checker intentionally has no model.  A real process
+    # The injected checker intentionally has no model. A real process
     # creates a loader during lifespan, so an unavailable model fails closed.
     model_ready = model_status in {"ready", "not_configured"}
     if not database_ready or not model_ready:

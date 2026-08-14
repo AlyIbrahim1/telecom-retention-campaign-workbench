@@ -1,4 +1,4 @@
-""" deterministic formula and lifecycle tests."""
+"""Deterministic formula and lifecycle tests."""
 
 from __future__ import annotations
 

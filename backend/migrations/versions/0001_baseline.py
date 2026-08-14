@@ -1,4 +1,4 @@
-"""Create the  migration baseline.
+"""Create the migration baseline.
 
 Revision ID: 0001_phase1
 Revises: None
@@ -15,7 +15,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Reserve the baseline;  introduces domain tables."""
+    """Reserve the baseline before domain tables are introduced."""
 
 
 def downgrade() -> None:

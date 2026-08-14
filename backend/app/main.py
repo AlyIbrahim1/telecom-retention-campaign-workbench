@@ -65,7 +65,7 @@ def create_app(
             app.state.database_check = database_check
             app.state.session_factory = session_factory
 
-        # The injected database checker is used by  boundary tests.  A
+        # The injected database checker is used by boundary tests. A
         # real application process always gets a loader here; tests that need
         # model behavior pass a small loader explicitly.
         active_loader = model_loader

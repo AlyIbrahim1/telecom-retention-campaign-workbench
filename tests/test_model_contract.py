@@ -1,4 +1,4 @@
-"""Executable evidence for the frozen  model contract."""
+"""Executable evidence for the frozen model contract."""
 
 import hashlib
 import json

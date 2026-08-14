@@ -48,7 +48,7 @@ ALLOWLISTED_TOOLS = {
 }
 
 # The provider sees only these function contracts.  Confirmation is deliberately
-# an HTTP/UI action, not an provider tool.
+# an HTTP/UI action, not a provider tool.
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",

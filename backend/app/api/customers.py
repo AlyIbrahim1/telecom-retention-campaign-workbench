@@ -1,4 +1,4 @@
-"""Customer and prediction routes for the  core.
+"""Customer and prediction routes for the core service.
 
 The route module intentionally keeps the orchestration explicit: normalize,
 score, then persist the customer and immutable prediction in one transaction.
@@ -374,7 +374,7 @@ async def list_customers(
 ):
     """Return a paginated, bounded customer table projection.
 
-    Campaign/outreach tables arrive in a later release. Until then an outreach
+    Campaign/outreach tables are not present. An outreach
     filter of ``not_recorded``/``none`` means the nullable pilot field is
     empty for every customer.
     """
@@ -421,7 +421,7 @@ async def list_customers(
         filters.append(Customer.internet_service == internet_service)
     if is_active is not None:
         filters.append(Customer.is_active == is_active)
-    # No campaign/outreach table exists in . Both documented values
+    # No campaign/outreach table exists here. Both documented values
     # therefore select the currently unrecorded (NULL) state.
     # ``outreach_status`` is accepted for forward-compatible list links; the
     # current pilot has no outreach rows, so every customer is unrecorded.

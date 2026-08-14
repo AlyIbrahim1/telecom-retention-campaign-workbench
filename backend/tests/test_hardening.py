@@ -1,4 +1,4 @@
-"""Focused  request-boundary and release-hardening evidence."""
+"""Focused request-boundary and release-hardening evidence."""
 
 from __future__ import annotations
 

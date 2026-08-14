@@ -4,7 +4,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class for application tables introduced in later stages."""
+    """Base class for application tables introduced later."""
 
 
 # Register model classes for Alembic/metadata consumers that import Base only.

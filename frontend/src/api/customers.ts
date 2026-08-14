@@ -197,7 +197,7 @@ export async function listCustomers(query: ListQuery): Promise<CustomerListRespo
   const body = await requestJson<Partial<CustomerListResponse>>(
     `/api/v1/customers?${listParams(query)}`,
   );
-  // A safe empty response keeps the shell usable while an older  API is
+  // A safe empty response keeps the shell usable while an older API is
   // starting. A real list response always includes items and total.
   return {
     items: Array.isArray(body.items)

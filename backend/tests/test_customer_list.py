@@ -1,4 +1,4 @@
-""" evidence for the bounded customer dashboard list contract."""
+"""Evidence for the bounded customer dashboard list contract."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Focused  CSV boundary tests."""
+"""Focused CSV boundary tests."""
 
 from __future__ import annotations
 

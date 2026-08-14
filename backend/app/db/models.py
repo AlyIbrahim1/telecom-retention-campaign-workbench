@@ -1,4 +1,4 @@
-"""Small, explicit SQLAlchemy models for the  customer core."""
+"""Small, explicit SQLAlchemy models for the customer core."""
 
 from __future__ import annotations
 
