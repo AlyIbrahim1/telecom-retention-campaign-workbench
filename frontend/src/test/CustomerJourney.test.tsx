@@ -148,6 +148,46 @@ describe("customer browser journeys", () => {
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/customers$/), expect.objectContaining({ method: "POST" }));
   });
 
+  it("disables options that require phone or internet service", async () => {
+    const user = userEvent.setup();
+    renderPath("/customers/new");
+    await screen.findByRole("heading", { name: "New customer" });
+
+    const phoneService = screen.getByLabelText("Phone service");
+    const multipleLines = screen.getByLabelText("Multiple lines");
+    await user.selectOptions(phoneService, "No");
+    expect(multipleLines).toBeDisabled();
+    expect(multipleLines).toHaveValue("No phone service");
+    expect(multipleLines.closest("label")).toHaveClass("form-field-disabled");
+    expect(screen.getByText("Unavailable without phone service.")).toBeVisible();
+
+    const internetService = screen.getByLabelText("Internet service");
+    const internetAddOns = [
+      "Online security",
+      "Online backup",
+      "Device protection",
+      "Tech support",
+      "Streaming TV",
+      "Streaming movies",
+    ].map((label) => screen.getByLabelText(label));
+    await user.selectOptions(internetService, "No");
+    internetAddOns.forEach((addOn) => {
+      expect(addOn).toBeDisabled();
+      expect(addOn).toHaveValue("No internet service");
+      expect(addOn.closest("label")).toHaveClass("form-field-disabled");
+    });
+
+    await user.selectOptions(phoneService, "Yes");
+    expect(multipleLines).toBeEnabled();
+    expect(multipleLines).toHaveValue("No");
+    expect(multipleLines.closest("label")).not.toHaveClass("form-field-disabled");
+    await user.selectOptions(internetService, "DSL");
+    internetAddOns.forEach((addOn) => {
+      expect(addOn).toBeEnabled();
+      expect(addOn).toHaveValue("No");
+    });
+  });
+
   it("shows changed fields before an explicit versioned update", async () => {
     const user = userEvent.setup();
     renderPath("/customers/JOURNEY-001/edit");

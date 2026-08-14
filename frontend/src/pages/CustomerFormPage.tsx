@@ -26,6 +26,15 @@ import {
 
 type FormMode = "create" | "update";
 
+const INTERNET_ADD_ON_FIELDS: FormField[] = [
+  "online_security",
+  "online_backup",
+  "device_protection",
+  "tech_support",
+  "streaming_tv",
+  "streaming_movies",
+];
+
 function clientValidation(values: FormValues): Record<string, string> {
   const errors: Record<string, string> = {};
   const required: FormField[] = [
@@ -56,11 +65,10 @@ function clientValidation(values: FormValues): Record<string, string> {
   if (values.phone_service === "Yes" && values.multiple_lines === "No phone service") {
     errors.multiple_lines = "Choose Yes or No when phone service is available.";
   }
-  const addOns: FormField[] = ["online_security", "online_backup", "device_protection", "tech_support", "streaming_tv", "streaming_movies"];
-  if (values.internet_service === "No" && addOns.some((field) => values[field] !== "No internet service")) {
+  if (values.internet_service === "No" && INTERNET_ADD_ON_FIELDS.some((field) => values[field] !== "No internet service")) {
     errors.internet_service = "Internet add-ons must be No internet service when internet service is No.";
   }
-  if (values.internet_service !== "No" && addOns.some((field) => values[field] === "No internet service")) {
+  if (values.internet_service !== "No" && INTERNET_ADD_ON_FIELDS.some((field) => values[field] === "No internet service")) {
     errors.internet_service = "Choose Yes or No for add-ons when internet service is present.";
   }
   return errors;
@@ -122,12 +130,28 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
 
   function handleChange(field: FormField, value: string) {
     setValues((current) => {
-      return { ...current, [field]: value };
+      const next = { ...current, [field]: value };
+      if (field === "phone_service") {
+        if (value === "No") next.multiple_lines = "No phone service";
+        else if (current.multiple_lines === "No phone service") next.multiple_lines = "No";
+      }
+      if (field === "internet_service") {
+        INTERNET_ADD_ON_FIELDS.forEach((addOn) => {
+          if (value === "No") next[addOn] = "No internet service";
+          else if (current[addOn] === "No internet service") next[addOn] = "No";
+        });
+      }
+      return next;
     });
     setPreview(null);
     setSubmitError("");
     setDuplicateId(null);
-    setErrors((current) => ({ ...current, [field]: "" }));
+    setErrors((current) => {
+      const next = { ...current, [field]: "" };
+      if (field === "phone_service") next.multiple_lines = "";
+      if (field === "internet_service") INTERNET_ADD_ON_FIELDS.forEach((addOn) => { next[addOn] = ""; });
+      return next;
+    });
   }
 
   function applyConsistentValues() {
@@ -138,15 +162,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
       } else if (next.multiple_lines === "No phone service") {
         next.multiple_lines = "No";
       }
-      const addOns: FormField[] = [
-        "online_security",
-        "online_backup",
-        "device_protection",
-        "tech_support",
-        "streaming_tv",
-        "streaming_movies",
-      ];
-      addOns.forEach((addOn) => {
+      INTERNET_ADD_ON_FIELDS.forEach((addOn) => {
         if (next.internet_service === "No") {
           next[addOn] = "No internet service";
         } else if (next[addOn] === "No internet service") {
@@ -236,22 +252,8 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
   const dependencyConflict =
     (values.phone_service === "No" && values.multiple_lines !== "No phone service") ||
     (values.phone_service === "Yes" && values.multiple_lines === "No phone service") ||
-    (values.internet_service === "No" && [
-      "online_security",
-      "online_backup",
-      "device_protection",
-      "tech_support",
-      "streaming_tv",
-      "streaming_movies",
-    ].some((field) => values[field as FormField] !== "No internet service")) ||
-    (values.internet_service !== "No" && [
-      "online_security",
-      "online_backup",
-      "device_protection",
-      "tech_support",
-      "streaming_tv",
-      "streaming_movies",
-    ].some((field) => values[field as FormField] === "No internet service"));
+    (values.internet_service === "No" && INTERNET_ADD_ON_FIELDS.some((field) => values[field] !== "No internet service")) ||
+    (values.internet_service !== "No" && INTERNET_ADD_ON_FIELDS.some((field) => values[field] === "No internet service"));
   const showConsistencyAction = dependencyConflict &&
     (Object.values(errors).some(Boolean) || Boolean(submitError));
 
@@ -277,16 +279,27 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
                 {group.fields.map((field) => {
                   const options = OPTIONS[field];
                   const isNumber = field === "tenure" || field === "monthly_charges" || field === "total_charges";
+                  const isDependencyDisabled =
+                    (field === "multiple_lines" && values.phone_service === "No") ||
+                    (INTERNET_ADD_ON_FIELDS.includes(field) && values.internet_service === "No");
+                  const dependencyHint = field === "multiple_lines"
+                    ? "Unavailable without phone service."
+                    : "Unavailable without internet service.";
+                  const describedBy = [
+                    errors[field] ? `${field}-error` : "",
+                    isDependencyDisabled ? `${field}-disabled-hint` : "",
+                  ].filter(Boolean).join(" ") || undefined;
                   return (
-                    <label className="form-field" key={field} htmlFor={field}>
+                    <label className={`form-field${isDependencyDisabled ? " form-field-disabled" : ""}`} key={field} htmlFor={field}>
                       <span>{FIELD_LABELS[field]} <span aria-hidden="true">*</span></span>
                       {options ? (
-                        <select id={field} aria-label={FIELD_LABELS[field]} value={values[field]} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)}>
+                        <select id={field} aria-label={FIELD_LABELS[field]} value={values[field]} disabled={isDependencyDisabled} aria-invalid={Boolean(errors[field])} aria-describedby={describedBy} onChange={(event) => handleChange(field, event.target.value)}>
                           {options.map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
                       ) : (
                         <input id={field} aria-label={FIELD_LABELS[field]} type={isNumber ? "number" : "text"} inputMode={field === "tenure" ? "numeric" : isNumber ? "decimal" : undefined} min={isNumber ? 0 : undefined} step={field === "tenure" ? 1 : "any"} value={values[field]} readOnly={mode === "update" && field === "customer_id"} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)} />
                       )}
+                      {isDependencyDisabled && <small id={`${field}-disabled-hint`} className="field-hint">{dependencyHint}</small>}
                       {errors[field] && <small id={`${field}-error`} className="field-error">{errors[field]}</small>}
                     </label>
                   );
