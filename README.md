@@ -1,63 +1,122 @@
 # Retention Campaign Workbench
 
-A beginner-friendly local workspace for reviewing telecom churn model scores,
-preparing human-confirmed retention campaigns, and using optional chat-assisted
-customer lookup and confirmed single-customer writes.
+Churn scores are useful only when they lead to a better conversation with the
+right customer. This project turns a telecom churn ML model into a small, local
+workspace for doing exactly that: review customer risk, bring in new records,
+build a capacity-aware retention campaign, and keep the final decision with a
+person.
 
-> **PILOT — SAMPLE OR APPROVED TEST DATA ONLY.** The application has no
-> authentication. Do not expose it publicly or use real production customer
-> data. A risk score is a model ranking score, not a calibrated probability.
+It is deliberately built as an assistant. The model suggests where to look; it does
+not make outreach decisions or claim to predict the future with certainty.
 
-The workspace provides validated customer and prediction records, import jobs,
-campaign optimization and review, and optional chat at `/chat`. Chat writes
-always show a structured preview and require a one-time confirmation token plus
-an idempotency key. Without `OPENAI_API_KEY`, chat reports a safe unavailable
-state while the rest of the workspace remains usable.
+This project is not a production ready application, only an educational project for learning AI and Machine learning.
 
-## Prerequisites
 
-- Docker Desktop or Docker Engine with Compose.
-- `make` for the short commands below, or the equivalent Compose commands.
+## What you can do
 
-The existing `.venv` remains the notebook environment. Docker uses the separate
-backend dependency lock and frontend npm lock.
+- Review customers and their churn-risk history.
+- Create or update individual customer records and score them with the bundled
+  Random Forest model.
+- Import CSV files through a preflight-and-confirm flow, so bad rows can be
+  caught before anything is written.
+- Build a limited-capacity retention campaign. Customers are ranked using churn
+  risk and relative monthly and historical spend; recommendations can be
+  reviewed and overridden before confirmation.
+- Optionally use the chat workspace for customer lookup and **staged**
+  single-customer writes. Every write has a structured preview, confirmation
+  token, and idempotency key.
 
-## First local start
+## How it works
 
-1. Copy `.env.example` to `.env`.
-2. Replace every `replace-with-a-local-password` value in `.env` with the same
+```text
+Customer record or CSV
+        |
+        v
+Validation + trusted model scoring
+        |
+        v
+Customer review and campaign ranking
+        |
+        v
+Human review, optional override, confirmation
+```
+
+The API verifies the bundled model's checksum before loading it, stores
+prediction history, and treats confirmed campaign selections as immutable.
+Campaign ranking is deterministic: it combines each customer's risk score with
+percentile-based monthly and historical spend, making the recommendation easier
+to inspect and reproduce.
+
+## Stack
+
+- **Frontend:** React, TypeScript, Vite, TanStack Query
+- **API:** FastAPI, SQLAlchemy, Alembic
+- **Database:** PostgreSQL 16
+- **Model:** scikit-learn Random Forest bundle, served through a validated
+  inference layer
+- **Local environment:** Docker Compose
+
+## Run it locally
+
+You will need Docker Desktop (or Docker Engine with Compose) and `make`.
+
+1. Create your local settings file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. In `.env`, replace each `replace-with-a-local-password` value with the same
    private development password.
-3. Start the services with `make start`.
-4. In another terminal, apply migrations with `make migrate`.
-5. Open <http://127.0.0.1:5173>. API liveness and readiness are available at
-   <http://127.0.0.1:8000/health/live> and
-   <http://127.0.0.1:8000/health/ready>.
 
-Frontend, API, and PostgreSQL ports are published only on `127.0.0.1`.
+3. Build and start the services:
 
-## Stop safely
+   ```bash
+   make start
+   ```
+
+4. In a second terminal, apply the database migrations:
+
+   ```bash
+   make migrate
+   ```
+
+5. Open the workbench at <http://127.0.0.1:5173>.
+
+The API health checks are available at
+<http://127.0.0.1:8000/health/live> and
+<http://127.0.0.1:8000/health/ready>. All service ports are bound to
+`127.0.0.1` by default.
+
+To add a small set of demo data from the IBM telecom churn database after startup, run:
+
+```bash
+make seed-demo
+```
+
+To stop the services without deleting your local database:
 
 ```bash
 make stop
 ```
 
-This stops containers but preserves the named PostgreSQL development volume.
-Do not add `--volumes` unless you deliberately intend to erase local database
-data.
+## Optional chat
 
-## Migrations and tests
+The rest of the workbench works without an API key. To enable chat, set
+`OPENAI_API_KEY` in `.env` and restart the API. When it is not configured, the
+chat area reports that safely and the customer, import, and campaign workflows
+remain available.
 
-Apply all migrations with `make migrate`; revert the most recent migration with
-`make migrate-down`.
+## Tests
 
-Run all backend, frontend, accessibility, build, and disposable PostgreSQL
-migration checks with:
+Run the full backend, frontend, build, accessibility, and disposable migration
+checks with:
 
 ```bash
 make test
 ```
 
-For quicker installed-environment checks during development:
+For faster checks in an already configured environment:
 
 ```bash
 pytest -q
@@ -65,10 +124,14 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-## Repository guide
+## Project layout
 
-- `teleco_churn_eda.ipynb` — analysis and model-training source of truth.
-- `app/` — reference inference CLI.
-- `backend/` — FastAPI service, database, migrations, and tests.
-- `frontend/` — React customer, import, campaign, and chat workflows.
-- `models/` — trusted exported Joblib bundle, mounted read-only in the API.
+- `backend/` — FastAPI service, database models, migrations, and API tests.
+- `frontend/` — React application for customer, import, campaign, and chat
+  workflows.
+- `app/` — small reference CLI for using the exported churn model directly.
+- `models/` — the trusted, exported Joblib model bundle mounted read-only by
+  the API.
+- `scripts/seed_demo.py` — optional local demo-data seeder.
+- `teleco_churn_eda.ipynb` — exploratory analysis and model-training source of
+  truth.
