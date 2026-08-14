@@ -7,6 +7,7 @@ import psycopg
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from psycopg import sql
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
@@ -32,7 +33,7 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
         alembic = Config("backend/alembic.ini")
         command.upgrade(alembic, "head")
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) != ""
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == ScriptDirectory.from_config(alembic).get_current_head()
 
         command.downgrade(alembic, "base")
         with engine.connect() as connection:
