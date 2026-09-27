@@ -130,3 +130,33 @@ describe("campaign browser journeys", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/campaigns\/camp-001\/confirm$/), expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "If-Match": "1", "Idempotency-Key": expect.any(String) }) })));
   });
 });
+
+it("records a simulated offer acceptance and updates the illustrative value", async () => {
+  const user = userEvent.setup();
+  let events: Array<{ event_id: string; status: string; note: string | null; actor: string; created_at: string }> = [];
+  const confirmed = { ...optimized, status: "confirmed", selected_count: 1, confirmed_at: "2026-08-13T09:10:00Z", value_horizon_months: 3, contact_cost_per_customer: 5 };
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/health/ready")) return response({ ready: true });
+    if (url.endsWith("/api/v1/campaigns/camp-001")) return response(confirmed);
+    if (url.includes("/api/v1/campaigns/camp-001/outreach?") && !init?.method) return response({
+      items: [{ selection_id: "sel-001", customer_id: "CUST-001", risk_score: 0.83, priority_score: 59.76, monthly_charges: 90, status: events[0]?.status ?? "not_started", events }],
+      total: 1, page: 1, page_size: 25,
+      summary: { selected: 1, contacted: events.length ? 1 : 0, reached: events.length ? 1 : 0, accepted: events.length ? 1 : 0, value_horizon_months: 3, contact_cost_per_customer: 5, associated_value: events.length ? 270 : 0, estimated_contact_cost: events.length ? 5 : 0, illustrative_net_value: events.length ? 265 : 0 },
+    });
+    if (url.endsWith("/api/v1/campaigns/camp-001/outreach/sel-001/events") && init?.method === "POST") {
+      const body = JSON.parse(String(init.body)) as { status: string; note: string | null };
+      events = [{ event_id: "event-001", status: body.status, note: body.note, actor: "local-demo-user", created_at: "2026-08-13T09:12:00Z" }];
+      return response(events[0], 201);
+    }
+    return response({ code: "not_found", detail: "not found" }, 404);
+  }));
+  renderPath("/campaigns/camp-001");
+  expect(await screen.findByRole("heading", { name: "Outreach queue" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Record outcome" }));
+  await user.selectOptions(screen.getByLabelText("Status"), "offer_accepted");
+  await user.type(screen.getByLabelText("Note (optional)"), "Accepted during local demo");
+  await user.click(screen.getByRole("button", { name: "Save outcome" }));
+  expect(await screen.findByText(/Illustrative net value: 265\.00/)).toBeVisible();
+  expect(screen.getByRole("cell", { name: "Offer accepted" })).toBeVisible();
+});

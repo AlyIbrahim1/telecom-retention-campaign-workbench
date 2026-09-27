@@ -27,6 +27,7 @@ import {
   proposedCampaignSelectionCount,
 } from "../features/campaigns/CampaignBits";
 import "../features/campaigns/campaigns.css";
+import { OutreachPanel } from "../features/campaigns/OutreachPanel";
 
 type BusyAction = "save" | "optimize" | "override" | "remove-override" | "confirm" | "archive" | null;
 
@@ -56,6 +57,8 @@ export function CampaignDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editCapacity, setEditCapacity] = useState("");
+  const [editHorizon, setEditHorizon] = useState("");
+  const [editCost, setEditCost] = useState("");
   const [reoptimizePrompt, setReoptimizePrompt] = useState(false);
   const [overrideTarget, setOverrideTarget] = useState<{ customerId: string; action: CampaignOverrideAction } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
@@ -75,6 +78,8 @@ export function CampaignDetailPage() {
     if (!campaignData || editOpen) return;
     setEditName(campaignData.name);
     setEditCapacity(String(campaignData.capacity));
+    setEditHorizon(String(campaignData.value_horizon_months));
+    setEditCost(String(campaignData.contact_cost_per_customer));
   }, [campaignData, editOpen]);
 
   useEffect(() => {
@@ -123,10 +128,14 @@ export function CampaignDetailPage() {
       setError("Capacity must be a positive whole number.");
       return;
     }
+    if (!/^\d+$/.test(editHorizon.trim()) || Number(editHorizon) < 1 || Number(editHorizon) > 24 || !editCost.trim() || !Number.isFinite(Number(editCost)) || Number(editCost) < 0 || Number(editCost) > 1000000) {
+      setError("Use a 1–24 month horizon and a nonnegative contact cost up to 1,000,000.");
+      return;
+    }
     setBusy("save");
     setError("");
     try {
-      await updateCampaign(campaign.campaign_id, { name, capacity }, campaign.version);
+      await updateCampaign(campaign.campaign_id, { name, capacity, value_horizon_months: Number(editHorizon), contact_cost_per_customer: Number(editCost) }, campaign.version);
       setEditOpen(false);
       await refresh();
     } catch (reason) {
@@ -247,7 +256,7 @@ export function CampaignDetailPage() {
       {reoptimizePrompt && <div className="import-alert" role="alert"><strong>Replace the current optimization snapshot?</strong><span>Re-optimization recalculates the ranked recommendations against a new database snapshot and clears unconfirmed overrides.</span><div className="state-actions"><button type="button" disabled={busy !== null} onClick={() => void runOptimization(true)}>Replace snapshot</button><button type="button" className="button-secondary" onClick={() => setReoptimizePrompt(false)}>Keep current snapshot</button></div></div>}
       {error && <p ref={errorRef} tabIndex={-1} className="import-alert" role="alert">{error}</p>}
 
-      {editOpen && canEdit && <form className="campaign-edit-form" onSubmit={saveDraft}><div className="section-heading"><p className="eyebrow">Draft only</p><h2>Edit campaign boundaries</h2><p>Changing capacity or name does not optimize the list. Run optimization again when you are ready.</p></div><div className="campaign-edit-fields"><label className="form-field" htmlFor="edit-campaign-name"><span>Campaign name</span><input id="edit-campaign-name" value={editName} maxLength={120} onChange={(event) => setEditName(event.target.value)} /></label><label className="form-field" htmlFor="edit-campaign-capacity"><span>Customer capacity</span><input id="edit-campaign-capacity" type="number" min={1} step={1} inputMode="numeric" value={editCapacity} onChange={(event) => setEditCapacity(event.target.value)} /></label></div><div className="form-actions"><button type="submit" disabled={busy !== null}>{busy === "save" ? "Saving draft…" : "Save draft"}</button></div></form>}
+      {editOpen && canEdit && <form className="campaign-edit-form" onSubmit={saveDraft}><div className="section-heading"><p className="eyebrow">Draft only</p><h2>Edit campaign boundaries</h2><p>Changing capacity or name does not optimize the list. Run optimization again when you are ready.</p></div><div className="campaign-edit-fields"><label className="form-field" htmlFor="edit-campaign-name"><span>Campaign name</span><input id="edit-campaign-name" value={editName} maxLength={120} onChange={(event) => setEditName(event.target.value)} /></label><label className="form-field" htmlFor="edit-campaign-capacity"><span>Customer capacity</span><input id="edit-campaign-capacity" type="number" min={1} step={1} inputMode="numeric" value={editCapacity} onChange={(event) => setEditCapacity(event.target.value)} /></label><label className="form-field" htmlFor="edit-horizon"><span>Value horizon (months)</span><input id="edit-horizon" type="number" min={1} max={24} step={1} value={editHorizon} onChange={(event) => setEditHorizon(event.target.value)} /></label><label className="form-field" htmlFor="edit-cost"><span>Cost per contacted customer (dataset currency units)</span><input id="edit-cost" type="number" min={0} max={1000000} step="0.01" value={editCost} onChange={(event) => setEditCost(event.target.value)} /></label></div><div className="form-actions"><button type="submit" disabled={busy !== null}>{busy === "save" ? "Saving draft…" : "Save draft"}</button></div></form>}
 
       <div className="campaign-overview-grid"><CampaignCapacityMeter campaign={campaign} /><CampaignFormula campaign={campaign} /></div>
 
@@ -266,6 +275,7 @@ export function CampaignDetailPage() {
 
         {campaign.status === "optimized" && <section className="campaign-confirm-panel" aria-labelledby="campaign-confirm-title"><div className="section-heading"><p className="eyebrow">Explicit confirmation</p><h2 id="campaign-confirm-title">Confirm selected outreach list</h2><p>Confirmation preserves this campaign snapshot and records the selected customers. It does not send email, SMS, calls, or launch an external campaign.</p></div><label><input type="checkbox" checked={confirmChecked} onChange={(event) => setConfirmChecked(event.target.checked)} /> <span>I reviewed the ranked recommendations and overrides, and I confirm this list for the stated capacity.</span></label><button type="button" disabled={!canConfirm || busy !== null || !hasSelection} onClick={() => void confirmSelection()}>{busy === "confirm" ? "Confirming…" : "Confirm campaign"}</button>{!hasSelection && <small>There are no recommendations to confirm in this snapshot.</small>}{proposedSelectionCount > campaign.capacity && <small>Selection is above capacity. Resolve the list before confirming.</small>}</section>}
         {campaign.status === "confirmed" && <div className="success-message" role="status"><strong>Campaign confirmed.</strong><span>The final selection is preserved as an immutable review snapshot. No automatic outreach was sent.</span></div>}
+        {(campaign.status === "confirmed" || campaign.status === "archived") && <OutreachPanel campaignId={campaign.campaign_id} archived={campaign.status === "archived"} />}
         {campaign.status === "archived" && <div className="warning-panel" role="status"><strong>Campaign archived.</strong><span>Archived campaigns are hidden from the default campaign list and remain available in the archived view.</span></div>}
       </>}
     </section>

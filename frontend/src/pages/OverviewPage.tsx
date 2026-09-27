@@ -1,22 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { listCampaigns } from "../api/campaigns";
-import { listCustomers } from "../api/customers";
-import { listImports } from "../api/imports";
+import { getOverview } from "../api/overview";
 
 export function OverviewPage() {
-  const summary = useQuery({
-    queryKey: ["workspace-overview"],
-    queryFn: async () => {
-      const [customers, imports, campaigns] = await Promise.all([
-        listCustomers({ page: 1, page_size: 25, sort: "customer_id", order: "asc" }),
-        listImports(1, 25),
-        listCampaigns(1, 25, true),
-      ]);
-      return { customers: customers.total, imports: imports.total, campaigns: campaigns.total };
-    },
-  });
+  const summary = useQuery({ queryKey: ["workspace-overview"], queryFn: getOverview });
 
   return (
     <section className="page-stack overview-page" aria-labelledby="overview-title">
@@ -42,9 +30,11 @@ export function OverviewPage() {
         </div>
       ) : (
         <dl className="overview-summary" aria-label="Workspace record counts">
-          <div><dt>Customers</dt><dd>{summary.data.customers.toLocaleString()}</dd></div>
-          <div><dt>Import jobs</dt><dd>{summary.data.imports.toLocaleString()}</dd></div>
-          <div><dt>Campaigns</dt><dd>{summary.data.campaigns.toLocaleString()}</dd></div>
+          <div><dt>Customers scored</dt><dd>{summary.data.customers_scored.toLocaleString()}</dd></div>
+          <div><dt>Campaigns awaiting review</dt><dd>{summary.data.campaigns_awaiting_review.toLocaleString()}</dd></div>
+          <div><dt>Confirmed selections</dt><dd>{summary.data.confirmed_selections.toLocaleString()}</dd></div>
+          <div><dt>Contacts recorded</dt><dd>{summary.data.contacts_recorded.toLocaleString()}</dd></div>
+          <div><dt>Accepted offers</dt><dd>{summary.data.accepted_offers.toLocaleString()}</dd></div>
         </dl>
       )}
 

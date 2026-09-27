@@ -9,6 +9,8 @@ export type Campaign = {
   campaign_id: string;
   name: string;
   capacity: number;
+  value_horizon_months: number;
+  contact_cost_per_customer: number;
   status: CampaignStatus;
   version: number;
   created_at: string;
@@ -85,7 +87,7 @@ export type CampaignOverrideInput = {
   replacement_customer_id?: string;
 };
 
-export type CampaignWriteInput = { name: string; capacity: number };
+export type CampaignWriteInput = { name: string; capacity: number; value_horizon_months: number; contact_cost_per_customer: number };
 
 async function parseProblem(response: Response): Promise<ApiProblem> {
   return (await response.json().catch(() => ({}))) as ApiProblem;
@@ -254,6 +256,8 @@ function normalizeCampaign(value: unknown, fallbackId = ""): Campaign {
     campaign_id: stringValue(first(source, ["campaign_id", "id"]), fallbackId),
     name: stringValue(source.name, "Untitled campaign"),
     capacity,
+    value_horizon_months: numberValue(source.value_horizon_months, 3),
+    contact_cost_per_customer: numberValue(source.contact_cost_per_customer, 5),
     status,
     version: Math.max(0, Math.trunc(numberValue(source.version, 1))),
     created_at: stringValue(source.created_at, new Date(0).toISOString()),
@@ -350,4 +354,32 @@ export async function archiveCampaign(campaignId: string, version: number): Prom
 
 export function campaignStatusLabel(status: CampaignStatus): string {
   return status[0].toUpperCase() + status.slice(1);
+}
+
+export type OutreachStatus = "not_started" | "attempted" | "no_answer" | "reached" | "offer_accepted" | "offer_declined";
+export type OutreachEvent = { event_id: string; status: Exclude<OutreachStatus, "not_started">; note: string | null; actor: string; created_at: string };
+export type OutreachItem = { selection_id: string; customer_id: string; risk_score: number; priority_score: number; monthly_charges: number; status: OutreachStatus; events: OutreachEvent[] };
+export type OutreachSummary = {
+  selected: number; contacted: number; reached: number; accepted: number;
+  value_horizon_months: number; contact_cost_per_customer: number;
+  associated_value: number; estimated_contact_cost: number; illustrative_net_value: number;
+};
+export type OutreachPage = { items: OutreachItem[]; total: number; page: number; page_size: number; summary: OutreachSummary };
+
+export function getOutreach(campaignId: string, page = 1, status?: OutreachStatus): Promise<OutreachPage> {
+  const query = new URLSearchParams({ page: String(page), page_size: "25" });
+  if (status) query.set("status", status);
+  return requestJson<OutreachPage>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/outreach?${query}`);
+}
+
+export function recordOutreach(campaignId: string, selectionId: string, status: Exclude<OutreachStatus, "not_started">, note: string, key: string): Promise<OutreachEvent> {
+  return requestJson<OutreachEvent>(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/outreach/${encodeURIComponent(selectionId)}/events`, {
+    method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ status, note: note.trim() || null }),
+  });
+}
+
+export async function downloadOutreach(campaignId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/campaigns/${encodeURIComponent(campaignId)}/outreach.csv`);
+  if (!response.ok) throw new ApiError(response.status, await parseProblem(response));
+  return response.blob();
 }

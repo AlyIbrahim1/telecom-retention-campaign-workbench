@@ -21,6 +21,8 @@ export function CampaignNewPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("25");
+  const [valueHorizon, setValueHorizon] = useState("3");
+  const [contactCost, setContactCost] = useState("5");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [creationKey, setCreationKey] = useState<string | null>(null);
@@ -35,6 +37,8 @@ export function CampaignNewPage() {
     if (!trimmed) return "Enter a campaign name.";
     if (trimmed.length > 120) return "Campaign names must be 120 characters or fewer.";
     if (!/^\d+$/.test(capacity.trim()) || Number(capacity) < 1) return "Capacity must be a positive whole number.";
+    if (!/^\d+$/.test(valueHorizon) || Number(valueHorizon) < 1 || Number(valueHorizon) > 24) return "Value horizon must be 1–24 months.";
+    if (!contactCost.trim() || !Number.isFinite(Number(contactCost)) || Number(contactCost) < 0 || Number(contactCost) > 1000000) return "Contact cost must be between 0 and 1,000,000.";
     return "";
   }
 
@@ -50,7 +54,7 @@ export function CampaignNewPage() {
     const key = creationKey ?? idempotencyKey();
     setCreationKey(key);
     try {
-      const campaign = await createCampaign({ name: name.trim(), capacity: Number(capacity) }, key);
+      const campaign = await createCampaign({ name: name.trim(), capacity: Number(capacity), value_horizon_months: Number(valueHorizon), contact_cost_per_customer: Number(contactCost) }, key);
       setCreationKey(null);
       navigate(`/campaigns/${encodeURIComponent(campaign.campaign_id)}`);
     } catch (reason) {
@@ -68,6 +72,8 @@ export function CampaignNewPage() {
         <div className="section-heading"><p className="eyebrow">Draft setup</p><h2>Campaign boundaries</h2><p>Capacity is the maximum number of customers that can be confirmed for this campaign. You can edit both fields while the campaign is still a draft.</p></div>
         <label className="form-field" htmlFor="campaign-name"><span>Campaign name <span aria-hidden="true">*</span></span><input id="campaign-name" name="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. August retention review" /><small>Use 1–120 characters that make the review purpose easy to recognize.</small></label>
         <label className="form-field" htmlFor="campaign-capacity"><span>Customer capacity <span aria-hidden="true">*</span></span><input id="campaign-capacity" name="capacity" required min={1} step={1} inputMode="numeric" type="number" value={capacity} onChange={(event) => setCapacity(event.target.value)} /><small>A positive whole number. This is a planning limit, not an automatic contact count.</small></label>
+        <label className="form-field" htmlFor="campaign-horizon"><span>Value horizon (months)</span><input id="campaign-horizon" type="number" min={1} max={24} step={1} value={valueHorizon} onChange={(event) => setValueHorizon(event.target.value)} /><small>Used only for an illustrative estimate after outcomes are recorded.</small></label>
+        <label className="form-field" htmlFor="campaign-contact-cost"><span>Cost per contacted customer (dataset currency units)</span><input id="campaign-contact-cost" type="number" min={0} max={1000000} step="0.01" value={contactCost} onChange={(event) => setContactCost(event.target.value)} /></label>
         <div className="campaign-new-guidance"><strong>What happens next</strong><ol><li>Optimization checks eligible, freshly scored active customers.</li><li>The workbench shows risk score, spending-derived value, and campaign priority.</li><li>You can record reasoned overrides, then confirm the final list explicitly.</li></ol></div>
         <div className="form-actions"><Link className="button-link button-secondary" to="/campaigns">Cancel</Link><button type="submit" disabled={busy}>{busy ? "Creating draft…" : "Create draft campaign"}</button></div>
       </form>
