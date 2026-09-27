@@ -253,7 +253,7 @@ def seed(
     base_url: str = DEFAULT_API_URL,
     csv_path: Path = DEFAULT_CSV,
     wait_seconds: float = 30.0,
-    request_timeout: float = 300.0,
+    request_timeout: float = 900.0,
 ) -> SeedSummary:
     """Import missing rows from the tracked IBM CSV and never overwrite rows."""
 
@@ -311,7 +311,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-url", default=DEFAULT_API_URL, help="Local API base URL (default: %(default)s)")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="IBM Telco CSV path")
     parser.add_argument("--wait-seconds", type=float, default=30.0, help="Readiness wait budget (default: %(default)s)")
-    parser.add_argument("--request-timeout", type=float, default=300.0, help="Per-request timeout (default: %(default)s)")
+    parser.add_argument("--request-timeout", type=float, default=900.0, help="Import wait budget and per-request timeout (default: %(default)s)")
     return parser
 
 
