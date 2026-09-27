@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.core.config import Settings
@@ -104,6 +104,21 @@ def test_create_is_idempotent_and_prediction_is_append_only():
     with factory() as session:
         assert len(session.scalars(select(Customer)).all()) == 1
         assert len(session.scalars(select(Prediction)).all()) == 1
+
+
+
+def test_previous_model_predictions_remain_readable_after_promotion():
+    app, factory = make_app()
+    body = canonical_fixture(FIXTURES[0])
+    created = asyncio.run(request(app, "post", "/api/v1/customers", json=body, headers={"Idempotency-Key": "legacy-prediction"}))
+    assert created.status_code == 201
+    assert created.json()["prediction"]["model_version"] == "random-forest-bundle-v2"
+    with factory() as session:
+        session.execute(update(Prediction).values(model_version="random-forest-bundle-v1"))
+        session.commit()
+    history = asyncio.run(request(app, "get", "/api/v1/customers/FIXTURE-HIGH-001/predictions"))
+    assert history.status_code == 200
+    assert history.json()["predictions"][0]["model_version"] == "random-forest-bundle-v1"
 
 
 def test_invalid_model_fails_readiness_without_exposing_loader_details(tmp_path):

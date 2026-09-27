@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.app.schemas.customer import CustomerInput, ValidationWarning
 
 
-MODEL_VERSION = "random-forest-bundle-v1"
+MODEL_VERSION = "random-forest-bundle-v2"
 THRESHOLD_POLICY_VERSION = "fpr-cap-0.31-v1"
 DEFAULT_THRESHOLD = 0.5268190582639384
 
@@ -22,7 +22,7 @@ class PredictionResponse(BaseModel):
     customer_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Z0-9_-]+$")
     risk_score: float = Field(ge=0, le=1)
     recommended_for_review: bool
-    model_version: Literal[MODEL_VERSION] = MODEL_VERSION
+    model_version: str = Field(default=MODEL_VERSION, min_length=1, max_length=80)
     threshold: float = DEFAULT_THRESHOLD
     threshold_policy_version: Literal[THRESHOLD_POLICY_VERSION] = THRESHOLD_POLICY_VERSION
     scored_at: datetime

@@ -8,7 +8,7 @@ from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_MODEL_SHA256 = "e96bc451db7fd313cd34e549816afbedded45ff34665a2aafd70c63bf767b180"
+DEFAULT_MODEL_SHA256 = "cc153c09709418482dded4b05de5dccbe5f990ccac908b53c1e91828c2fcd73a"
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[3] / "models" / "random_forest_churn_bundle.joblib"
 
 

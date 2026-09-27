@@ -13,20 +13,21 @@ This is a historical, observational sample. Churn associations are not causal ev
 ## Bundled artifact
 
 - File: `models/random_forest_churn_bundle.joblib`
-- SHA-256: `e96bc451db7fd313cd34e549816afbedded45ff34665a2aafd70c63bf767b180`
-- scikit-learn version in bundle: `1.9.0`
+- SHA-256: `cc153c09709418482dded4b05de5dccbe5f990ccac908b53c1e91828c2fcd73a`
+- Application model version: `random-forest-bundle-v2`; scikit-learn version: `1.9.0`
 - Decision threshold: `0.5268190582639384`; provisional training false-positive-rate cap: `0.31`
-- Stored training out-of-fold recall/FPR: `0.8462` / `0.3073`
-- Stored holdout recall/precision/FPR/F2: `0.8396` / `0.4945` / `0.3101` / `0.7367`
-- Stored holdout counts: 321 false positives, 60 false negatives, 635 customers flagged.
+- Training cross-validation recall under the cap: `0.8495` for Random Forest and LightGBM. The documented tie rule selected Random Forest.
+- Training out-of-fold recall/FPR at the frozen threshold: `0.846` / `0.307`.
+- Untouched holdout recall/precision/FPR/F2: `0.8396` / `0.4945` / `0.3101` / `0.7367`.
+- Holdout counts: 321 false positives, 60 false negatives, 635 customers flagged.
 
-These are values stored in the current trusted bundle. The bundle predates the revised model-selection notebook. Its original comparison considered test-set contact share when choosing Random Forest, so these holdout metrics should **not** be presented as an untouched post-selection estimate. Rerun the revised notebook and review its candidate before making stronger generalization claims.
+The revised notebook selected the model and threshold using training data only, then evaluated the holdout once. This candidate was promoted after its checksum, feature contract, model loader, and holdout counts were verified. Its prediction scores matched the previous bundle exactly across all 7,043 tracked customer rows; the improvement is the valid selection procedure and provenance, rather than different scores. Historical predictions keep their original model version and checksum in the database.
 
 ## Reproducibility and promotion
 
-`notebooks/eda.ipynb` explores the data. `notebooks/model_selection.ipynb` now selects a deployable model using training cross-validation, freezes its threshold using out-of-fold training scores, and then evaluates the holdout once. It writes a candidate under `models/candidates/`, leaving the trusted artifact unchanged.
+`notebooks/eda.ipynb` explores the data. `notebooks/model_selection.ipynb` selects a deployable model using training cross-validation, freezes its threshold using out-of-fold training scores, and then evaluates the holdout once. It writes a candidate under `models/candidates/` so notebook reruns cannot silently replace the trusted application bundle.
 
-The API deliberately checks the artifact checksum, feature order, scikit-learn version, model family contract, and threshold at startup. Promoting a new candidate requires reviewing its metrics, updating the application model contract and `MODEL_PATH`/`MODEL_SHA256`, and running migration, model-contract, API, and browser tests. A checksum update alone will not promote a candidate.
+The API checks the artifact checksum, feature order, scikit-learn version, model family contract, and threshold at startup. A future promotion requires reviewing the candidate metrics, updating the application model version and checksum, and running model-contract, API, and browser checks. Changing only the checksum is insufficient.
 
 ## Limits
 
