@@ -56,7 +56,7 @@ services:
       api:
         condition: service_started
     ports:
-      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
 
 volumes:
   postgres_data:

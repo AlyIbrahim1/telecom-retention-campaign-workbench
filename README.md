@@ -86,6 +86,10 @@ You will need Docker Desktop (or Docker Engine with Compose) and `make`.
 
 5. Open the workbench at <http://127.0.0.1:5173>.
 
+If port 5173 is in use, set `FRONTEND_PORT` to a free port in `.env` and set
+`CORS_ORIGIN` to the matching URL (for example, `FRONTEND_PORT=5175` and
+`CORS_ORIGIN=http://127.0.0.1:5175`). Open the workbench on that port.
+
 The API health checks are available at
 <http://127.0.0.1:8000/health/live> and
 <http://127.0.0.1:8000/health/ready>. All service ports are bound to
