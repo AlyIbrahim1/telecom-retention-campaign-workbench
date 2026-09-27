@@ -50,6 +50,7 @@ def create_app(
         app.state.model_error = None
         app.state.chat_provider = chat_provider or OpenAIResponsesProvider(
             settings.openai_api_key,
+            settings.openai_base_url,
             settings.openai_model,
             settings.chat_timeout_seconds,
             settings.chat_max_output_tokens,

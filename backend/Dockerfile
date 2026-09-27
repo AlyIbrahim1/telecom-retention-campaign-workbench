@@ -10,8 +10,6 @@ COPY backend/requirements.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir --requirement /tmp/requirements.lock
 
 COPY backend backend
-COPY app app
-COPY docs docs
 COPY scripts scripts
 COPY WA_Fn-UseC_-Telco-Customer-Churn.csv WA_Fn-UseC_-Telco-Customer-Churn.csv
 COPY models models

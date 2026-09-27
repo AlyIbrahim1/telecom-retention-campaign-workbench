@@ -39,9 +39,10 @@ class ChatProvider(Protocol):
 
 @dataclass(frozen=True)
 class OpenAIResponsesProvider:
-    """Provider adapter configured entirely from backend settings."""
+    """OpenAI-compatible Chat Completions adapter, including OpenRouter."""
 
     api_key: SecretStr | None
+    base_url: str
     model: str
     timeout_seconds: float = 20.0
     max_output_tokens: int = 600
@@ -53,12 +54,12 @@ class OpenAIResponsesProvider:
         try:
             from openai import OpenAI
 
-            client = OpenAI(api_key=key, timeout=self.timeout_seconds)
-            response = client.responses.create(
+            client = OpenAI(api_key=key, base_url=self.base_url, timeout=self.timeout_seconds)
+            response = client.chat.completions.create(
                 model=self.model,
-                input=messages,
-                tools=tools,
-                max_output_tokens=self.max_output_tokens,
+                messages=messages,
+                tools=self._chat_tools(tools),
+                max_tokens=self.max_output_tokens,
             )
         except TimeoutError as exc:  # pragma: no cover - provider-specific
             raise ProviderTimeout from exc
@@ -84,12 +85,12 @@ class OpenAIResponsesProvider:
         try:
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(api_key=key, timeout=self.timeout_seconds)
-            response = await client.responses.create(
+            client = AsyncOpenAI(api_key=key, base_url=self.base_url, timeout=self.timeout_seconds)
+            response = await client.chat.completions.create(
                 model=self.model,
-                input=messages,
-                tools=tools,
-                max_output_tokens=self.max_output_tokens,
+                messages=messages,
+                tools=self._chat_tools(tools),
+                max_tokens=self.max_output_tokens,
             )
         except TimeoutError as exc:  # pragma: no cover - provider-specific
             raise ProviderTimeout from exc
@@ -107,11 +108,12 @@ class OpenAIResponsesProvider:
     @staticmethod
     def _response_payload(response: Any) -> ChatProviderResponse:
         calls: list[ChatToolCall] = []
-        for item in getattr(response, "output", []) or []:
-            if getattr(item, "type", None) != "function_call":
-                continue
-            name = str(getattr(item, "name", ""))
-            raw_arguments = getattr(item, "arguments", "{}")
+        choices = getattr(response, "choices", []) or []
+        message = getattr(choices[0], "message", None) if choices else None
+        for item in getattr(message, "tool_calls", []) or []:
+            function = getattr(item, "function", None)
+            name = str(getattr(function, "name", ""))
+            raw_arguments = getattr(function, "arguments", "{}")
             try:
                 arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
             except (TypeError, ValueError):
@@ -119,13 +121,28 @@ class OpenAIResponsesProvider:
                 # tool error instead of being passed into the domain.
                 arguments = {"_malformed": True}
             calls.append(ChatToolCall(name=name, arguments=arguments))
-        text = getattr(response, "output_text", "") or ""
+        text = getattr(message, "content", "") or ""
         return ChatProviderResponse(
             text=str(text),
             tool_calls=calls,
             response_id=str(getattr(response, "id", "")) or None,
-            refused=not bool(text or calls) and bool(getattr(response, "incomplete_details", None)),
+            refused=not bool(text or calls) and bool(getattr(message, "refusal", None)),
         )
+
+    @staticmethod
+    def _chat_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("parameters", {}),
+                },
+            }
+            for tool in tools
+            if tool.get("type") == "function" and tool.get("name")
+        ]
 
 
 class UnavailableProvider:

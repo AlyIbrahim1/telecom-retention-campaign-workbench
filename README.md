@@ -103,7 +103,9 @@ make stop
 ## Optional chat
 
 The rest of the workbench works without an API key. To enable chat, set
-`OPENAI_API_KEY` in `.env` and restart the API. When it is not configured, the
+`OPENAI_API_KEY` in `.env` and restart the API. For OpenRouter, also set
+`OPENAI_BASE_URL=https://openrouter.ai/api/v1` and choose an OpenRouter model,
+for example `OPENAI_MODEL=openai/gpt-4o-mini`. When it is not configured, the
 chat area reports that safely and the customer, import, and campaign workflows
 remain available.
 

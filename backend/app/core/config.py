@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # Chat is optional in the local pilot.  An absent key keeps the core API
     # usable and makes chat return a safe ``ai_unavailable`` state.
     openai_api_key: SecretStr | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4.1-mini"
     chat_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     chat_max_output_tokens: int = Field(default=600, ge=64, le=4000)
