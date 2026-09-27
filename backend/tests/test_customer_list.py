@@ -148,3 +148,43 @@ def test_customer_list_rejects_unbounded_page_sizes():
     app = make_app()
     response = asyncio.run(request(app, "get", "/api/v1/customers?page_size=10"))
     assert response.status_code == 422
+
+
+
+def test_customer_overview_describes_stored_account_facts():
+    app = make_app()
+    seed_customers(app)
+
+    response = asyncio.run(request(app, "get", "/api/v1/overview/customers"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["active_customers"] == 3
+    assert body["inactive_customers"] == 0
+    assert sum(item["customers"] for item in body["by_contract"]) == 3
+    assert [item["label"] for item in body["by_contract"]][:3] == ["Month-to-month", "One year", "Two year"]
+    assert sum(item["customers"] for item in body["tenure_distribution"]) == 3
+    assert sum(item["customers"] for item in body["monthly_charges_distribution"]) == 3
+    assert body["tenure_distribution"][0] == {"lower": 0, "upper": 6, "customers": body["tenure_distribution"][0]["customers"]}
+    assert body["monthly_charges_total"] > 0
+    assert {item["key"] for item in body["account_profile"]} >= {"senior_citizen", "paperless_billing"}
+    assert all(item["base"] == body["internet_customers"] for item in body["add_on_adoption"])
+    # Descriptive statistics only: no model output leaks into this payload.
+    assert "score" not in response.text and "recommended" not in response.text
+
+
+def test_prediction_overview_splits_latest_predictions_at_the_threshold():
+    app = make_app()
+    seed_customers(app)
+
+    response = asyncio.run(request(app, "get", "/api/v1/overview/predictions"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["active_customers"] == 3
+    assert body["scored_customers"] == 3
+    assert body["predicted_churn"] == 2
+    assert body["predicted_no_churn"] == 1
+    assert body["unscored_customers"] == 0
+    assert 0 < body["threshold"] < 1
+    assert body["model_version"]
