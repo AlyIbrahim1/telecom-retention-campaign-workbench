@@ -7,9 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { routes } from "../app/router";
 
-function readyResponse() {
+function readyResponse(input?: RequestInfo | URL) {
+  const body = String(input).endsWith("/api/v1/overview")
+    ? { customers_scored: 0, campaigns_awaiting_review: 0, confirmed_selections: 0, contacts_recorded: 0, accepted_offers: 0 }
+    : { ready: true };
   return Promise.resolve(
-    new Response(JSON.stringify({ ready: true }), {
+    new Response(JSON.stringify(body), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }),
