@@ -9,7 +9,7 @@ person.
 It is deliberately built as an assistant. The model suggests where to look; it does
 not make outreach decisions or claim to predict the future with certainty.
 
-This project is not a production ready application, only an educational project for learning AI and Machine learning.
+This is a local internship demonstration, not a deployed production service. It has no authentication or real outreach delivery.
 
 
 ## What you can do
@@ -22,6 +22,9 @@ This project is not a production ready application, only an educational project 
 - Build a limited-capacity retention campaign. Customers are ranked using churn
   risk and relative monthly and historical spend; recommendations can be
   reviewed and overridden before confirmation.
+- Record simulated contact outcomes for a confirmed campaign, inspect the
+  audit history, export the outreach queue, and view an illustrative financial
+  estimate based on explicit campaign assumptions.
 - Optionally use the chat workspace for customer lookup and **staged**
   single-customer writes. Every write has a structured preview, confirmation
   token, and idempotency key.
@@ -88,11 +91,14 @@ The API health checks are available at
 <http://127.0.0.1:8000/health/ready>. All service ports are bound to
 `127.0.0.1` by default.
 
-To add a small set of demo data from the IBM telecom churn database after startup, run:
+To import missing records from the tracked 7,043-row IBM telecom churn CSV after startup, run:
 
 ```bash
 make seed-demo
 ```
+
+For a guided walkthrough, see [DEMO.md](DEMO.md). For model evaluation and
+limitations, see [MODEL_CARD.md](MODEL_CARD.md).
 
 To stop the services without deleting your local database:
 
