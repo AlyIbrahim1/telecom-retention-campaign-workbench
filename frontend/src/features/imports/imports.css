@@ -404,7 +404,7 @@
 .status-warning {
   border-color: color-mix(in oklch, var(--color-warning) 50%, var(--color-border));
   background: var(--color-warning-soft);
-  color: var(--color-warning);
+  color: oklch(0.48 0.12 72);
 }
 
 @media (max-width: 56rem) {

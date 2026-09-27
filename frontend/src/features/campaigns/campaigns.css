@@ -169,6 +169,10 @@
   color: var(--color-nav-muted);
 }
 
+.campaign-formula .decision-note {
+  background: var(--color-nav);
+}
+
 .campaign-formula h2,
 .campaign-formula .formula-line strong,
 .campaign-formula .formula-details dd {

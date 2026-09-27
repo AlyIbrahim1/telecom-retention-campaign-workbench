@@ -585,7 +585,7 @@ button:disabled {
 
 .overview-action-primary > span:first-child,
 .overview-action-primary > span:last-child {
-  color: color-mix(in oklch, var(--color-surface) 86%, transparent);
+  color: var(--color-surface);
 }
 
 .overview-action-primary:hover {
