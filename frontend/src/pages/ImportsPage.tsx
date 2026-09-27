@@ -3,25 +3,32 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { downloadTemplate, listImports } from "../api/imports";
-import { formatDate } from "../features/customers/CustomerBits";
-import { ImportErrorState, ImportStatusBadge } from "../features/imports/ImportBits";
+import {
+  EmptyState,
+  Icon,
+  LoadingState,
+  Notice,
+  PageHeader,
+  Pagination,
+  saveBlob,
+  formatDate,
+  ImportErrorState,
+  ImportStatusBadge,
+  isImportActive,
+} from "../components/index";
+
 import "../features/imports/imports.css";
 
-async function saveBlob(blob: Blob, filename: string) {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(href);
-}
+const PAGE_SIZE = 25;
 
 export function ImportsPage() {
   const [page, setPage] = useState(1);
   const [downloadError, setDownloadError] = useState("");
   const imports = useQuery({
     queryKey: ["imports", page],
-    queryFn: () => listImports(page, 25),
+    queryFn: () => listImports(page, PAGE_SIZE),
+    placeholderData: (previous) => previous,
+    refetchInterval: (query) => (query.state.data?.items.some((job) => isImportActive(job.status)) ? 4000 : false),
   });
 
   async function handleTemplate() {
@@ -34,29 +41,85 @@ export function ImportsPage() {
   }
 
   if (imports.isPending) {
-    return <section className="page-stack imports-page" aria-labelledby="imports-title"><ImportsHeader onTemplate={handleTemplate} /><div className="loading-panel" role="status">Loading import history…</div></section>;
+    return <section className="page-stack imports-page" aria-labelledby="imports-title"><ImportsHeader onTemplate={handleTemplate} /><div className="panel"><LoadingState label="Loading import history…" rows={5} /></div></section>;
   }
   if (imports.isError) {
     return <ImportErrorState title="Imports" message="Import history could not be loaded. Try again when the API is ready." retry={() => imports.refetch()} />;
   }
-  const pageCount = Math.max(1, Math.ceil((imports.data.total || 0) / imports.data.page_size));
+  const pageSize = imports.data.page_size || PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil((imports.data.total || 0) / pageSize));
 
   return (
     <section className="page-stack imports-page" aria-labelledby="imports-title">
       <ImportsHeader onTemplate={handleTemplate} />
-      {downloadError && <p className="import-alert" role="alert">{downloadError}</p>}
-      <div className="list-summary"><p role="status"><strong>{imports.data.total}</strong> import job{imports.data.total === 1 ? "" : "s"}</p></div>
+      {downloadError && <Notice tone="danger" role="alert">{downloadError}</Notice>}
+      <div className="list-toolbar">
+        <p role="status" className="result-count"><strong>{imports.data.total.toLocaleString()}</strong> import job{imports.data.total === 1 ? "" : "s"}{imports.isFetching && <span className="inline-loading"><span className="spinner" aria-hidden="true" />Updating</span>}</p>
+      </div>
       {imports.data.items.length === 0 ? (
-        <div className="empty-panel"><p className="eyebrow">No jobs yet</p><h2>Import a CSV when you are ready</h2><p>Download the canonical template, choose create or update mode, then run a preflight before any customer data is written.</p><div className="state-actions"><Link className="button-link" to="/imports/new">Start an import</Link><button type="button" className="button-secondary" onClick={handleTemplate}>Download template</button></div></div>
+        <div className="panel">
+          <EmptyState
+            icon="upload"
+            eyebrow="No jobs yet"
+            title="Import a CSV when you are ready"
+            actions={<><Link className="button-link" to="/imports/new"><Icon name="plus" size={18} />Start an import</Link><button type="button" className="button-secondary" onClick={handleTemplate}><Icon name="download" size={18} />Download template</button></>}
+          >
+            <p>Download the canonical template, choose create or update mode, then run a preflight before any customer data is written.</p>
+          </EmptyState>
+        </div>
       ) : (
-        <div className="table-scroll import-table-scroll"><table className="customer-table import-table"><caption className="sr-only">Import job history</caption><thead><tr><th scope="col">File</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">Rows</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Open</span></th></tr></thead><tbody>{imports.data.items.map((job) => <tr key={job.job_id}><th scope="row" data-label="File"><Link to={`/imports/${encodeURIComponent(job.job_id)}`}>{job.filename}</Link><span className="cell-note">{job.job_id}</span></th><td data-label="Mode">{job.mode === "create" ? "Create" : "Update"}</td><td data-label="Status"><ImportStatusBadge status={job.status} /></td><td data-label="Rows">{job.total_rows}<span className="cell-note">{job.succeeded_rows} succeeded · {job.failed_rows} failed</span></td><td data-label="Created">{formatDate(job.created_at)}</td><td data-label="Open"><Link className="row-action" to={`/imports/${encodeURIComponent(job.job_id)}`}>Open<span className="sr-only"> {job.filename}</span></Link></td></tr>)}</tbody></table></div>
+        <div className="table-frame">
+          <div className="table-scroll" tabIndex={0} role="region" aria-label="Import job history table">
+            <table className="data-table import-table">
+              <caption className="sr-only">Import job history</caption>
+              <thead>
+                <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Mode</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" className="num">Total</th>
+                  <th scope="col" className="num">Succeeded</th>
+                  <th scope="col" className="num">Failed</th>
+                  <th scope="col">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {imports.data.items.map((job) => (
+                  <tr key={job.job_id}>
+                    <th scope="row" data-label="File">
+                      <Link className="record-link" to={`/imports/${encodeURIComponent(job.job_id)}`}>{job.filename}</Link>
+                      <span className="cell-note mono">{job.job_id.slice(0, 8)}</span>
+                    </th>
+                    <td data-label="Mode"><span className={`mode-tag mode-tag-${job.mode}`}>{job.mode === "create" ? "Create" : "Update"}</span></td>
+                    <td data-label="Status"><ImportStatusBadge status={job.status} /></td>
+                    <td data-label="Total" className="num">{job.total_rows.toLocaleString()}</td>
+                    <td data-label="Succeeded" className="num">{job.succeeded_rows.toLocaleString()}</td>
+                    <td data-label="Failed" className={`num${job.failed_rows ? " text-danger" : ""}`}>{job.failed_rows.toLocaleString()}</td>
+                    <td data-label="Created" className="cell-date">{formatDate(job.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
-      <nav className="pagination" aria-label="Import result pages"><button type="button" className="button-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button><span aria-live="polite">Page {page} of {pageCount}</span><button type="button" className="button-secondary" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>Next</button></nav>
+      <Pagination label="Import result pages" page={page} pageCount={pageCount} onPage={setPage} total={imports.data.total} pageSize={pageSize} itemLabel="jobs" />
     </section>
   );
 }
 
 function ImportsHeader({ onTemplate }: { onTemplate: () => void }) {
-  return <div className="page-heading-action"><div><p className="eyebrow">Data operations</p><h1 id="imports-title">Imports</h1><p className="page-description">Preflight a bounded CSV, review every row outcome, and explicitly confirm any customer writes.</p></div><div className="detail-actions"><button type="button" className="button-secondary" onClick={onTemplate}>Download template</button><Link className="button-link" to="/imports/new">New import</Link></div></div>;
+  return (
+    <PageHeader
+      titleId="imports-title"
+      crumbs={[{ label: "Overview", to: "/" }, { label: "Imports" }]}
+      eyebrow="Data operations"
+      title="Imports"
+      description="Preflight a bounded CSV, review every row outcome, and explicitly confirm any customer writes."
+      actions={<>
+        <button type="button" className="button-secondary" onClick={onTemplate}><Icon name="download" size={18} />CSV template</button>
+        <Link className="button-link" to="/imports/new"><Icon name="plus" size={18} />New import</Link>
+      </>}
+    />
+  );
 }
-

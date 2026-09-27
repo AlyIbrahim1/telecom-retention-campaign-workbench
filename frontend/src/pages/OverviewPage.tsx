@@ -1,48 +1,132 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { getOverview } from "../api/overview";
+import { getCustomerOverview, getOverview, getPredictionOverview, type Overview } from "../api/overview";
+import { EmptyState, Icon, LoadingState, Notice, PageHeader } from "../components/index";
+import { OverviewCard } from "../components/organisms/overview/OverviewCard";
+import { OverviewKpis } from "../components/organisms/overview/OverviewKpis";
+import { ChurnDonut } from "../components/organisms/ChurnDonut";
+import { Histogram, InsightTables, MixBars, ShareMeters } from "../components/organisms/CustomerCharts";
+
+const ACTIVITY: Array<{ key: keyof Overview; label: string; to: string }> = [
+  { key: "customers_scored", label: "Customers scored", to: "/customers" },
+  { key: "campaigns_awaiting_review", label: "Campaigns awaiting review", to: "/campaigns" },
+  { key: "confirmed_selections", label: "Confirmed selections", to: "/campaigns" },
+  { key: "contacts_recorded", label: "Contacts recorded", to: "/campaigns" },
+  { key: "accepted_offers", label: "Accepted offers", to: "/campaigns" },
+];
 
 export function OverviewPage() {
-  const summary = useQuery({ queryKey: ["workspace-overview"], queryFn: getOverview });
+  const activity = useQuery({ queryKey: ["workspace-overview"], queryFn: getOverview });
+  const insight = useQuery({ queryKey: ["customer-overview"], queryFn: getCustomerOverview });
+  const predictions = useQuery({ queryKey: ["prediction-overview"], queryFn: getPredictionOverview });
+  const data = insight.data;
+  const refreshing = insight.isFetching || activity.isFetching || predictions.isFetching;
 
   return (
     <section className="page-stack overview-page" aria-labelledby="overview-title">
-      <div className="overview-hero">
-        <div className="page-heading">
-          <p className="eyebrow">Retention operations</p>
-          <h1 id="overview-title">Campaign overview</h1>
-          <p className="page-description">Move from customer insight to a focused, reviewable retention campaign—with every decision kept in human hands.</p>
-        </div>
-        <div className="overview-hero-note" aria-label="Workspace purpose">
-          <span>01</span>
-          <p>Find priority customers. Understand the model signal. Build the right outreach list.</p>
-        </div>
-      </div>
+      <PageHeader
+        titleId="overview-title"
+        eyebrow="Retention operations"
+        title="Overview"
+        actions={
+          <>
+            <button type="button" className="button-ghost" onClick={() => { void insight.refetch(); void activity.refetch(); void predictions.refetch(); }} disabled={refreshing}>
+              <Icon name="refresh" size={18} />{refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+            <Link className="button-link button-secondary" to="/imports/new"><Icon name="upload" size={18} />Import customers</Link>
+            <Link className="button-link" to="/campaigns/new"><Icon name="plus" size={18} />New campaign</Link>
+          </>
+        }
+      />
 
-      {summary.isPending ? (
-        <div className="loading-panel" role="status">Loading workspace counts…</div>
-      ) : summary.isError || !summary.data ? (
-        <div className="system-state" role="alert">
-          <h2>Overview counts are unavailable</h2>
-          <p>The workspace is still available. Open a section directly or try the counts again.</p>
-          <button type="button" onClick={() => summary.refetch()}>Try again</button>
+      {insight.isPending ? (
+        <div className="panel"><LoadingState label="Loading customer statistics…" rows={4} /></div>
+      ) : insight.isError || !data ? (
+        <Notice tone="danger" role="alert" title="Customer statistics are unavailable" actions={<button type="button" className="button-small" onClick={() => insight.refetch()}><Icon name="refresh" size={16} />Try again</button>}>
+          The rest of the workspace is still available.
+        </Notice>
+      ) : data.active_customers === 0 ? (
+        <div className="panel">
+          <EmptyState icon="users" eyebrow="No customers yet" title="Import customers to populate the dashboard" actions={<Link className="button-link" to="/imports/new"><Icon name="upload" size={18} />Import customers</Link>}>
+            <p>Charts summarise the active customer records once they exist.</p>
+          </EmptyState>
         </div>
       ) : (
-        <dl className="overview-summary" aria-label="Workspace record counts">
-          <div><dt>Customers scored</dt><dd>{summary.data.customers_scored.toLocaleString()}</dd></div>
-          <div><dt>Campaigns awaiting review</dt><dd>{summary.data.campaigns_awaiting_review.toLocaleString()}</dd></div>
-          <div><dt>Confirmed selections</dt><dd>{summary.data.confirmed_selections.toLocaleString()}</dd></div>
-          <div><dt>Contacts recorded</dt><dd>{summary.data.contacts_recorded.toLocaleString()}</dd></div>
-          <div><dt>Accepted offers</dt><dd>{summary.data.accepted_offers.toLocaleString()}</dd></div>
-        </dl>
+        <OverviewKpis data={data} />
       )}
 
-      <nav className="overview-actions" aria-label="Workspace actions">
-        <Link className="overview-action overview-action-primary" to="/customers"><span>Explore customer insight</span><strong>Review customers</strong><span aria-hidden="true">↗</span></Link>
-        <Link className="overview-action" to="/campaigns/new"><span>Build the next outreach list</span><strong>Create a campaign</strong><span aria-hidden="true">↗</span></Link>
-        <Link className="overview-action" to="/imports/new"><span>Bring in customer records</span><strong>Start an import</strong><span aria-hidden="true">↗</span></Link>
-      </nav>
+      <section className="activity-strip" aria-labelledby="activity-title">
+        <h2 id="activity-title" className="activity-title">Campaign activity</h2>
+        {activity.isPending ? (
+          <LoadingState label="Loading campaign activity…" rows={1} />
+        ) : activity.isError || !activity.data ? (
+          <Notice tone="danger" role="alert" title="Campaign activity is unavailable" actions={<button type="button" className="button-small" onClick={() => activity.refetch()}><Icon name="refresh" size={16} />Try again</button>} />
+        ) : (
+          <ul className="activity-list" aria-label="Workspace record counts">
+            {ACTIVITY.map((item) => (
+              <li key={item.key}>
+                <Link to={item.to}>
+                  <span className="activity-label">{item.label}</span>
+                  <strong>{activity.data[item.key].toLocaleString("en")}</strong>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {data && data.active_customers > 0 && (
+        <div className="dash-grid">
+          <OverviewCard title="Churn prediction" subtitle={`Latest model prediction for ${(predictions.data?.scored_customers ?? 0).toLocaleString("en")} scored customers`} id="chart-churn">
+            {predictions.isPending ? (
+              <LoadingState label="Loading predictions…" rows={3} />
+            ) : predictions.isError || !predictions.data ? (
+              <Notice tone="danger" role="alert" title="Predictions are unavailable" actions={<button type="button" className="button-small" onClick={() => predictions.refetch()}><Icon name="refresh" size={16} />Try again</button>} />
+            ) : predictions.data.scored_customers === 0 ? (
+              <EmptyState compact icon="info" title="No scored customers yet"><p>Predictions appear once customers are scored.</p></EmptyState>
+            ) : (
+              <ChurnDonut data={predictions.data} />
+            )}
+          </OverviewCard>
+          <OverviewCard title="Contract" subtitle="Share of active customers" id="chart-contract">
+            <MixBars items={data.by_contract} />
+          </OverviewCard>
+          <OverviewCard title="Internet service" subtitle="Share of active customers" id="chart-internet">
+            <MixBars items={data.by_internet_service} labels={{ No: "No internet" }} />
+          </OverviewCard>
+          <OverviewCard title="Tenure" subtitle="Customers by months with the company" id="chart-tenure" span={6}>
+            <Histogram
+              bins={data.tenure_distribution}
+              describe={(bin) => `${bin.lower}–${bin.upper} months`}
+              xLabel="Tenure (months)"
+              xTicks={[0, 12, 24, 36, 48, 60, 72].map((value) => ({ value, label: String(value) }))}
+              caption="Number of active customers in each six-month tenure band."
+            />
+          </OverviewCard>
+          <OverviewCard title="Monthly charges" subtitle="Customers by monthly charge, dataset currency units" id="chart-charges" span={6}>
+            <Histogram
+              bins={data.monthly_charges_distribution}
+              describe={(bin) => `${bin.lower}–${bin.upper} per month`}
+              xLabel="Monthly charges"
+              xTicks={[0, 20, 40, 60, 80, 100, 120].map((value) => ({ value, label: String(value) }))}
+              caption="Number of active customers in each band of 10 monthly charge units."
+            />
+          </OverviewCard>
+          <OverviewCard title="Payment method" subtitle="Share of active customers" id="chart-payment">
+            <MixBars items={data.by_payment_method} labels={{ "Bank transfer (automatic)": "Bank transfer (auto)", "Credit card (automatic)": "Credit card (auto)" }} />
+          </OverviewCard>
+          <OverviewCard title="Add-on adoption" subtitle={`Share of ${data.internet_customers.toLocaleString("en")} internet customers`} id="chart-addons">
+            <ShareMeters items={data.add_on_adoption} baseLabel="internet customers" />
+          </OverviewCard>
+          <OverviewCard title="Account profile" subtitle="Share of active customers; multiple lines among phone customers" id="chart-profile">
+            <ShareMeters items={data.account_profile} />
+          </OverviewCard>
+          <div className="dash-span-12">
+            <InsightTables data={data} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

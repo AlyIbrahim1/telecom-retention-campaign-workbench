@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../api/customers";
 import { createCampaign } from "../api/campaigns";
+import { Icon, PageHeader, SectionHeading } from "../components/index";
 import "../features/campaigns/campaigns.css";
 
 function idempotencyKey() {
@@ -66,17 +67,39 @@ export function CampaignNewPage() {
 
   return (
     <section className="page-stack campaign-new-page" aria-labelledby="new-campaign-title">
-      <div className="page-heading"><p className="eyebrow">Campaign workbench</p><h1 id="new-campaign-title">New campaign</h1><p className="page-description">Give the review list a clear name and a maximum size. Optimization will create a snapshot; it will not contact customers.</p></div>
-      <div ref={summaryRef} tabIndex={-1} className={`form-summary ${error ? "form-summary-visible" : ""}`} role="alert" aria-live="assertive">{error && <p>{error}</p>}</div>
-      <form className="campaign-new-form" onSubmit={handleSubmit} noValidate aria-busy={busy}>
-        <div className="section-heading"><p className="eyebrow">Draft setup</p><h2>Campaign boundaries</h2><p>Capacity is the maximum number of customers that can be confirmed for this campaign. You can edit both fields while the campaign is still a draft.</p></div>
-        <label className="form-field" htmlFor="campaign-name"><span>Campaign name <span aria-hidden="true">*</span></span><input id="campaign-name" name="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. August retention review" /><small>Use 1–120 characters that make the review purpose easy to recognize.</small></label>
-        <label className="form-field" htmlFor="campaign-capacity"><span>Customer capacity <span aria-hidden="true">*</span></span><input id="campaign-capacity" name="capacity" required min={1} step={1} inputMode="numeric" type="number" value={capacity} onChange={(event) => setCapacity(event.target.value)} /><small>A positive whole number. This is a planning limit, not an automatic contact count.</small></label>
-        <label className="form-field" htmlFor="campaign-horizon"><span>Value horizon (months)</span><input id="campaign-horizon" type="number" min={1} max={24} step={1} value={valueHorizon} onChange={(event) => setValueHorizon(event.target.value)} /><small>Used only for an illustrative estimate after outcomes are recorded.</small></label>
-        <label className="form-field" htmlFor="campaign-contact-cost"><span>Cost per contacted customer (dataset currency units)</span><input id="campaign-contact-cost" type="number" min={0} max={1000000} step="0.01" value={contactCost} onChange={(event) => setContactCost(event.target.value)} /></label>
-        <div className="campaign-new-guidance"><strong>What happens next</strong><ol><li>Optimization checks eligible, freshly scored active customers.</li><li>The workbench shows risk score, spending-derived value, and campaign priority.</li><li>You can record reasoned overrides, then confirm the final list explicitly.</li></ol></div>
-        <div className="form-actions"><Link className="button-link button-secondary" to="/campaigns">Cancel</Link><button type="submit" disabled={busy}>{busy ? "Creating draft…" : "Create draft campaign"}</button></div>
-      </form>
+      <PageHeader
+        titleId="new-campaign-title"
+        crumbs={[{ label: "Overview", to: "/" }, { label: "Campaigns", to: "/campaigns" }, { label: "New campaign" }]}
+        eyebrow="Campaign workbench"
+        title="New campaign"
+        description="Give the review list a clear name, a maximum size, and the assumptions used for its illustrative estimate. Creating a draft does not contact anyone."
+      />
+      <div ref={summaryRef} tabIndex={-1} className={`form-summary${error ? " form-summary-visible" : ""}`} role="alert" aria-live="assertive">{error && <p><Icon name="alert" size={18} />{error}</p>}</div>
+      <div className="split-layout">
+        <form className="panel campaign-new-form" onSubmit={handleSubmit} noValidate aria-busy={busy}>
+          <SectionHeading eyebrow="Draft setup" title="Campaign boundaries">Capacity is the maximum number of customers that can be confirmed. You can edit every field while the campaign is still a draft.</SectionHeading>
+          <label className="field" htmlFor="campaign-name"><span className="field-label">Campaign name <span className="field-required" aria-hidden="true">*</span></span><input id="campaign-name" name="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. August retention review" autoComplete="off" /><small className="field-hint">1–120 characters that make the review purpose easy to recognize.</small></label>
+          <label className="field" htmlFor="campaign-capacity"><span className="field-label">Customer capacity <span className="field-required" aria-hidden="true">*</span></span><input id="campaign-capacity" name="capacity" required min={1} step={1} inputMode="numeric" type="number" value={capacity} onChange={(event) => setCapacity(event.target.value)} /><small className="field-hint">A positive whole number. This is a planning limit, not an automatic contact count.</small></label>
+          <fieldset className="subfieldset">
+            <legend>Estimate assumptions</legend>
+            <div className="field-grid field-grid-2">
+              <label className="field" htmlFor="campaign-horizon"><span className="field-label">Value horizon (months)</span><input id="campaign-horizon" type="number" min={1} max={24} step={1} value={valueHorizon} onChange={(event) => setValueHorizon(event.target.value)} /><small className="field-hint">1–24 months. Default 3.</small></label>
+              <label className="field" htmlFor="campaign-contact-cost"><span className="field-label">Cost per contacted customer (dataset currency units)</span><input id="campaign-contact-cost" type="number" min={0} max={1000000} step="0.01" value={contactCost} onChange={(event) => setContactCost(event.target.value)} /><small className="field-hint">Default 5. Used only for the illustrative estimate.</small></label>
+            </div>
+          </fieldset>
+          <div className="form-footer"><Link className="button-link button-secondary" to="/campaigns">Cancel</Link><button type="submit" disabled={busy}>{busy ? <><span className="spinner" aria-hidden="true" />Creating draft…</> : "Create draft campaign"}</button></div>
+        </form>
+        <aside className="panel guidance-panel" aria-labelledby="next-steps-title">
+          <p className="eyebrow">What happens next</p>
+          <h2 id="next-steps-title">Three explicit steps</h2>
+          <ol className="numbered-steps">
+            <li><strong>Optimize</strong><span>Rank eligible, freshly scored active customers by risk and relative spend, within capacity.</span></li>
+            <li><strong>Review and override</strong><span>Inspect risk score, spend-derived value, and priority. Exclude or include customers with a recorded reason.</span></li>
+            <li><strong>Confirm explicitly</strong><span>Tick the confirmation statement to freeze the list. Nothing is sent — outcomes are entered by hand afterwards.</span></li>
+          </ol>
+          <p className="decision-note"><Icon name="info" size={16} /><span>The horizon and contact cost only feed an illustrative estimate. They are not a forecast of realized savings.</span></p>
+        </aside>
+      </div>
     </section>
   );
 }

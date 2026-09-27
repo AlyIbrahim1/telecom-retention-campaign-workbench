@@ -3,6 +3,15 @@ import type { CustomerInput } from "../../api/customers";
 export type FormField = keyof CustomerInput;
 export type FormValues = Record<FormField, string>;
 
+export const INTERNET_ADD_ON_FIELDS: FormField[] = [
+  "online_security",
+  "online_backup",
+  "device_protection",
+  "tech_support",
+  "streaming_tv",
+  "streaming_movies",
+];
+
 export const DEFAULT_CUSTOMER: FormValues = {
   customer_id: "",
   gender: "Female",

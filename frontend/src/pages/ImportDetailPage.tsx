@@ -1,24 +1,29 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/customers";
 import { cancelImport, confirmImport, downloadImportErrors, downloadImportResults, getImport } from "../api/imports";
-import { formatDate } from "../features/customers/CustomerBits";
-import { ImportCounts, ImportErrorState, ImportProgress, ImportStatusBadge, isImportActive, isImportTerminal } from "../features/imports/ImportBits";
+import {
+  formatDate,
+  ImportCounts,
+  ImportErrorState,
+  ImportProgress,
+  ImportStatusBadge,
+  isImportActive,
+  isImportTerminal,
+  Icon,
+  LoadingState,
+  Notice,
+  PageHeader,
+  SectionHeading,
+  saveBlob,
+} from "../components/index";
+
 import "../features/imports/imports.css";
 
 function writeKey() {
   return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `import-confirm-${Date.now()}`;
-}
-
-async function saveBlob(blob: Blob, filename: string) {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(href);
 }
 
 function actionError(error: unknown): string {
@@ -51,14 +56,15 @@ export function ImportDetailPage() {
   }, [actionErrorMessage, downloadError]);
 
   if (jobQuery.isPending) {
-    return <section className="page-stack import-detail-page" aria-labelledby="import-detail-title"><DetailHeader jobId={jobId} /><div className="loading-panel" role="status">Loading import progress…</div></section>;
+    return <section className="page-stack import-detail-page" aria-labelledby="import-detail-title"><DetailHeader jobId={jobId} /><div className="panel"><LoadingState label="Loading import progress…" rows={4} /></div></section>;
   }
   if (jobQuery.isError || !jobQuery.data) {
     const notFound = jobQuery.error instanceof ApiError && jobQuery.error.status === 404;
     return <ImportErrorState title="Import details" message={notFound ? "That import job could not be found." : "Import details could not be loaded. Try again when the API is ready."} retry={() => jobQuery.refetch()} />;
   }
   const job = jobQuery.data;
-  const canConfirm = job.status === "ready" || job.status === "uploaded";
+  const awaitingConfirmation = job.status === "ready" || job.status === "uploaded";
+  const canConfirm = awaitingConfirmation && job.valid_rows > 0;
   const canCancel = !isImportTerminal(job.status) && job.status !== "completed";
 
   async function handleConfirm() {
@@ -99,18 +105,78 @@ export function ImportDetailPage() {
     }
   }
 
+  const active = isImportActive(job.status);
+  const terminal = isImportTerminal(job.status);
+
   return (
     <section className="page-stack import-detail-page" aria-labelledby="import-detail-title">
-      <DetailHeader jobId={job.job_id} />
-      <div className="detail-actions"><Link className="button-link button-secondary" to="/imports">Back to imports</Link>{canConfirm && <button type="button" disabled={actionBusy !== null} onClick={handleConfirm}>{actionBusy === "confirm" ? "Confirming…" : "Confirm and process import"}</button>}{canCancel && <button type="button" className="button-secondary" disabled={actionBusy !== null} onClick={handleCancel}>{actionBusy === "cancel" ? "Cancelling…" : "Cancel import"}</button>}</div>
-      {(actionErrorMessage || downloadError) && <div ref={errorRef} tabIndex={-1}>{actionErrorMessage && <p className="import-alert" role="alert">{actionErrorMessage}</p>}{downloadError && <p className="import-alert" role="alert">{downloadError}</p>}</div>}
-      <section className="import-status-panel" aria-labelledby="import-status-title"><div className="preview-heading"><div><p className="eyebrow">{job.mode === "create" ? "Create mode" : "Update mode"}</p><h2 id="import-status-title">{job.filename}</h2><p className="import-job-meta">Job {job.job_id} · Started {formatDate(job.created_at)}</p></div><ImportStatusBadge status={job.status} /></div>{isImportActive(job.status) && <ImportProgress job={job} />}{job.message && <p className="import-job-message" role="status">{job.message}</p>}<ImportCounts job={job} /></section>
-      <section className="import-outcomes" aria-labelledby="import-outcomes-title"><div className="section-heading"><p className="eyebrow">Row-level transparency</p><h2 id="import-outcomes-title">Outcomes</h2><p>Valid rows are processed independently. Invalid rows never write customer data.</p></div>{job.status === "partially_completed" && <div className="import-alert"><strong>Partial success</strong><span>Some rows completed and some were rejected. Download both files to review every original row.</span></div>}{job.status === "failed" && <div className="import-alert"><strong>Import failed</strong><span>No new action is taken automatically. Review the job message and start a fresh preflight if needed.</span></div>}{job.status === "cancelled" && <div className="import-alert"><strong>Import cancelled</strong><span>Rows not yet processed were not written.</span></div>}<div className="download-actions"><button type="button" className="button-secondary" disabled={!isImportTerminal(job.status)} onClick={() => handleDownload("results")}>Download result CSV</button><button type="button" className="button-secondary" disabled={!isImportTerminal(job.status)} onClick={() => handleDownload("errors")}>Download error CSV</button></div></section>
-      {isImportActive(job.status) && <p className="poll-note" role="status">This page checks for progress every two seconds while the job is active.</p>}
+      <DetailHeader
+        jobId={job.job_id}
+        filename={job.filename}
+        actions={<>
+          <Link className="button-link button-ghost" to="/imports"><Icon name="arrowLeft" size={18} />Back to imports</Link>
+          {canCancel && <button type="button" className="button-secondary" disabled={actionBusy !== null} onClick={handleCancel}>{actionBusy === "cancel" ? "Cancelling…" : "Cancel import"}</button>}
+        </>}
+      />
+      {(actionErrorMessage || downloadError) && <div ref={errorRef} tabIndex={-1} className="stack-sm">{actionErrorMessage && <Notice tone="danger" role="alert">{actionErrorMessage}</Notice>}{downloadError && <Notice tone="danger" role="alert">{downloadError}</Notice>}</div>}
+
+      <section className="panel import-status-panel" aria-labelledby="import-status-title">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{job.mode === "create" ? "Create mode" : "Update mode"}</p>
+            <h2 id="import-status-title">{job.filename}</h2>
+            <dl className="inline-meta">
+              <div><dt>Job</dt><dd className="mono">{job.job_id}</dd></div>
+              <div><dt>Created</dt><dd>{formatDate(job.created_at)}</dd></div>
+              {job.updated_at && <div><dt>Updated</dt><dd>{formatDate(job.updated_at)}</dd></div>}
+              {job.file_hash && <div><dt>SHA-256</dt><dd className="mono" title={job.file_hash}>{job.file_hash.slice(0, 16)}…</dd></div>}
+            </dl>
+          </div>
+          <ImportStatusBadge status={job.status} />
+        </div>
+        {(active || terminal) && <ImportProgress job={job} />}
+        {job.message && <p className="import-job-message">{job.message}</p>}
+        <ImportCounts job={job} />
+        {awaitingConfirmation && !canConfirm && <Notice tone="warning" title="Nothing to process">This preflight found no valid rows, so there is nothing to confirm. Correct the file and start a new import.</Notice>}
+        {canConfirm && (
+          <div className="confirm-bar confirm-bar-emphasis">
+            <div>
+              <strong>Ready to process</strong>
+              <p>{job.valid_rows.toLocaleString()} valid row{job.valid_rows === 1 ? "" : "s"} will be {job.mode === "create" ? "created" : "updated and re-scored"}. {job.invalid_rows ? `${job.invalid_rows.toLocaleString()} invalid row${job.invalid_rows === 1 ? "" : "s"} will be skipped.` : "No rows will be skipped."} This cannot be undone from the workbench.</p>
+            </div>
+            <button type="button" disabled={actionBusy !== null} onClick={handleConfirm}>{actionBusy === "confirm" ? <><span className="spinner" aria-hidden="true" />Confirming…</> : "Confirm and process import"}</button>
+          </div>
+        )}
+      </section>
+
+      {active && <Notice tone="info" role="status" title="Processing"><span className="loading-label"><span className="spinner" aria-hidden="true" />This page checks for progress every two seconds while the job is active.</span></Notice>}
+
+      <section className="panel import-outcomes" aria-labelledby="import-outcomes-title">
+        <SectionHeading eyebrow="Row-level transparency" title="Outcomes" id="import-outcomes-title">Valid rows are processed independently. Invalid rows never write customer data.</SectionHeading>
+        {job.status === "completed" && <Notice tone="success" title="Import completed">{job.succeeded_rows.toLocaleString()} row{job.succeeded_rows === 1 ? "" : "s"} processed successfully. Download the result CSV for a row-by-row record.</Notice>}
+        {job.status === "partially_completed" && <Notice tone="warning" title="Partial success">Some rows completed and some were rejected. Download both files to review every original row.</Notice>}
+        {job.status === "failed" && <Notice tone="danger" title="Import failed">No new action is taken automatically. Review the job message and start a fresh preflight if needed.</Notice>}
+        {job.status === "cancelled" && <Notice tone="neutral" title="Import cancelled">Rows not yet processed were not written.</Notice>}
+        {!terminal && <p className="field-hint">Result and error files become available when the job finishes.</p>}
+        <div className="button-row">
+          <button type="button" className="button-secondary" disabled={!terminal} onClick={() => handleDownload("results")}><Icon name="download" size={18} />Download result CSV</button>
+          <button type="button" className="button-secondary" disabled={!terminal} onClick={() => handleDownload("errors")}><Icon name="download" size={18} />Download error CSV</button>
+          {terminal && <Link className="button-link button-ghost" to="/customers"><Icon name="users" size={18} />Review customers</Link>}
+        </div>
+      </section>
     </section>
   );
 }
 
-function DetailHeader({ jobId }: { jobId?: string }) {
-  return <div className="page-heading"><p className="eyebrow">Data operations</p><h1 id="import-detail-title">Import details</h1><p className="page-description">Track a bounded job and inspect its deterministic row outcomes. <strong className="record-id">{jobId ?? "Import job"}</strong></p></div>;
+function DetailHeader({ jobId, filename, actions }: { jobId?: string; filename?: string; actions?: ReactNode }) {
+  return (
+    <PageHeader
+      titleId="import-detail-title"
+      crumbs={[{ label: "Overview", to: "/" }, { label: "Imports", to: "/imports" }, { label: filename ?? jobId ?? "Import job" }]}
+      eyebrow="Data operations"
+      title="Import details"
+      description="Track a bounded job and inspect its deterministic row outcomes."
+      actions={actions}
+    />
+  );
 }

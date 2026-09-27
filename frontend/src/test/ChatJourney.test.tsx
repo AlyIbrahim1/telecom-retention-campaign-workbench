@@ -29,13 +29,30 @@ beforeEach(() => {
 });
 
 describe("chat browser journey", () => {
+  it("opens and closes the assistant side panel from the header", async () => {
+    const user = userEvent.setup();
+    renderPath("/customers/CTX-001");
+    const toggle = await screen.findByRole("button", { name: "Assistant" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(within(panel).getByText("Customer CTX-001")).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Close assistant" }));
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
+  });
+
   it("keeps explicit customer context and labels grounded answer sections", async () => {
     const user = userEvent.setup();
     renderPath("/chat?customerId=CTX-001");
 
-    expect(await screen.findByRole("heading", { name: "Assistant chat" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Assistant" })).toBeVisible();
     expect(screen.getByText("Customer CTX-001")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "New chat" })).toBeEnabled());
     await user.type(screen.getByLabelText("Message the assistant"), "What should I review?");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByText("The record is at elevated risk.")).toBeVisible();
@@ -59,8 +76,10 @@ describe("chat browser journey", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     renderPath("/chat");
-    await screen.findByRole("heading", { name: "Assistant chat" });
+    await screen.findByRole("heading", { name: "Assistant" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "New chat" })).toBeEnabled());
     await user.type(screen.getByLabelText("Message the assistant"), "Create this customer");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Send message" }));
     expect(await screen.findByRole("heading", { name: "Review new customer" })).toBeVisible();
     expect(screen.getByText("Customer ID")).toBeVisible();
@@ -79,7 +98,8 @@ describe("chat browser journey", () => {
       return response({}, 404);
     }));
     renderPath("/chat");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Assistant unavailable");
+    const panel = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Assistant unavailable");
     expect(screen.queryByText("secret provider stack trace")).not.toBeInTheDocument();
   });
 
@@ -95,8 +115,10 @@ describe("chat browser journey", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     renderPath("/chat");
-    await screen.findByRole("heading", { name: "Assistant chat" });
+    await screen.findByRole("heading", { name: "Assistant" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "New chat" })).toBeEnabled());
     await user.type(screen.getByLabelText("Message the assistant"), "Prepare an update");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Send message" }));
     expect(await screen.findByRole("heading", { name: "Review customer update" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Cancel preview" }));

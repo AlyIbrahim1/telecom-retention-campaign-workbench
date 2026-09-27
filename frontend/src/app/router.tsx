@@ -1,7 +1,7 @@
 import { createBrowserRouter, type RouteObject } from "react-router-dom";
 
-import { ApiAvailabilityGate } from "../components/ApiAvailabilityGate";
-import { ApplicationShell } from "../components/ApplicationShell";
+import { ApiAvailabilityGate } from "../components/templates/ApiAvailabilityGate";
+import { ApplicationShell } from "../components/templates/ApplicationShell";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { OverviewPage } from "../pages/OverviewPage";
 import { CustomersPage } from "../pages/CustomersPage";

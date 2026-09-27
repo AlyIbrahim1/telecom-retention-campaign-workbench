@@ -157,6 +157,7 @@ it("records a simulated offer acceptance and updates the illustrative value", as
   await user.selectOptions(screen.getByLabelText("Status"), "offer_accepted");
   await user.type(screen.getByLabelText("Note (optional)"), "Accepted during local demo");
   await user.click(screen.getByRole("button", { name: "Save outcome" }));
-  expect(await screen.findByText(/Illustrative net value: 265\.00/)).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Illustrative net value" })).toBeVisible();
+  await waitFor(() => expect(screen.getAllByText("265.00").length).toBeGreaterThan(0));
   expect(screen.getByRole("cell", { name: "Offer accepted" })).toBeVisible();
 });

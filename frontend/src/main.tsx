@@ -1,5 +1,4 @@
-import "@fontsource-variable/archivo";
-import "@fontsource-variable/figtree";
+import "@fontsource-variable/hanken-grotesk";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

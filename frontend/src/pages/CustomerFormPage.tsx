@@ -12,12 +12,14 @@ import {
   type CustomerInput,
   type CustomerPreview,
 } from "../api/customers";
-import { ErrorState, ModelScore, WarningList } from "../features/customers/CustomerBits";
+import { Icon, LoadingState, Notice, PageHeader, ErrorState, ModelScore, RecommendationStatus, WarningList } from "../components/index";
+import { CustomerField } from "../components/molecules/customers/CustomerField";
+
 import {
   DEFAULT_CUSTOMER,
   FIELD_LABELS,
   GROUPS,
-  OPTIONS,
+  INTERNET_ADD_ON_FIELDS,
   payloadFromValues,
   valuesFromCustomer,
   type FormField,
@@ -25,15 +27,6 @@ import {
 } from "../features/customers/constants";
 
 type FormMode = "create" | "update";
-
-const INTERNET_ADD_ON_FIELDS: FormField[] = [
-  "online_security",
-  "online_backup",
-  "device_protection",
-  "tech_support",
-  "streaming_tv",
-  "streaming_movies",
-];
 
 function clientValidation(values: FormValues): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -113,6 +106,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"preview" | "persist" | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
   const didLoad = useRef(false);
 
   useEffect(() => {
@@ -193,6 +187,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
         ? await previewCustomer(payload)
         : await previewCustomerUpdate(customerId ?? "", payload);
       setPreview(result);
+      window.setTimeout(() => previewRef.current?.focus(), 0);
     } catch (error) {
       if (error instanceof ApiError && error.problem.errors?.length) {
         const next = Object.fromEntries(error.problem.errors.map((item) => [item.field ?? "customer", item.message]));
@@ -240,7 +235,7 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
   }
 
   if (mode === "update" && updateQuery.isPending) {
-    return <section className="page-stack" aria-labelledby="update-title"><PageHeader mode={mode} /><div className="loading-panel" role="status">Loading the current customer values…</div></section>;
+    return <section className="page-stack" aria-labelledby="update-title"><FormHeader mode={mode} customerId={customerId} /><div className="panel"><LoadingState label="Loading the current customer values…" rows={5} /></div></section>;
   }
   if (mode === "update" && (updateQuery.isError || !updateQuery.data?.customer)) {
     return <ErrorState title="Update customer" message={updateQuery.isError && updateQuery.error instanceof ApiError && updateQuery.error.status === 404 ? "That customer could not be found." : "The current customer could not be loaded."} onRetry={() => updateQuery.refetch()} />;
@@ -256,97 +251,114 @@ export function CustomerFormPage({ mode }: { mode: FormMode }) {
     (values.internet_service !== "No" && INTERNET_ADD_ON_FIELDS.some((field) => values[field] === "No internet service"));
   const showConsistencyAction = dependencyConflict &&
     (Object.values(errors).some(Boolean) || Boolean(submitError));
+  const hasErrors = Object.values(errors).some(Boolean);
+  const step = preview ? 2 : 1;
+  const cancelTo = mode === "update" ? `/customers/${encodeURIComponent(customerId ?? "")}` : "/customers";
 
   return (
     <section
       className="page-stack form-page"
       aria-labelledby={mode === "create" ? "new-title" : "update-title"}
     >
-      <PageHeader mode={mode} customerId={customerId} />
-      {mode === "update" && <div className="info-panel"><strong>Explicit update</strong><span>This action re-scores the customer and appends a new immutable prediction. Current version: {updateQuery.data?.version}.</span></div>}
-      <div ref={summaryRef} className={`form-summary ${Object.values(errors).some(Boolean) || submitError ? "form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="assertive">
-        {Object.values(errors).some(Boolean) && <><strong>Review these fields</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}><a href={`#${field}`}>{FIELD_LABELS[field as FormField] ?? field}: {message}</a></li>)}</ul></>}
-        {showConsistencyAction && <button type="button" className="button-secondary" onClick={applyConsistentValues}>Apply consistent values</button>}
+      <FormHeader mode={mode} customerId={customerId} />
+
+      <ol className="stepper" aria-label="Save steps">
+        <li className={step === 1 ? "is-current" : "is-done"} aria-current={step === 1 ? "step" : undefined}><span className="stepper-index">1</span><span>Enter account facts</span></li>
+        <li className={step === 2 ? "is-current" : undefined} aria-current={step === 2 ? "step" : undefined}><span className="stepper-index">2</span><span>Preview model score</span></li>
+        <li><span className="stepper-index">3</span><span>Confirm {mode === "create" ? "create" : "update"}</span></li>
+      </ol>
+
+      {mode === "update" && (
+        <Notice tone="info" title="Explicit update">
+          Saving re-scores this customer and appends a new prediction snapshot; earlier snapshots are kept. Current record version: {updateQuery.data?.version}.
+        </Notice>
+      )}
+
+      <div ref={summaryRef} className={`form-summary${hasErrors || submitError ? " form-summary-visible" : ""}`} tabIndex={-1} role="alert" aria-live="assertive">
+        {hasErrors && <><strong className="form-summary-title"><Icon name="alert" size={18} />Review these fields</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}><a href={`#${field}`}>{FIELD_LABELS[field as FormField] ?? field}: {message}</a></li>)}</ul></>}
+        {showConsistencyAction && <button type="button" className="button-secondary button-small" onClick={applyConsistentValues}>Apply consistent values</button>}
         {submitError && <p>{submitError}{duplicateId && mode === "create" && <> <Link to={`/customers/${encodeURIComponent(duplicateId)}/edit`}>Open the explicit update page.</Link></>}</p>}
       </div>
-      <form onSubmit={handlePreview} noValidate aria-busy={busy !== null}>
+
+      <form className="customer-form" onSubmit={handlePreview} noValidate aria-busy={busy !== null}>
         <div className="form-groups">
-          {GROUPS.map((group) => (
+          {GROUPS.map((group, groupIndex) => (
             <fieldset className="form-group" key={group.title}>
-              <legend>{group.title}</legend>
-              <p>{group.description}</p>
+              <legend><span className="form-group-index" aria-hidden="true">{String(groupIndex + 1).padStart(2, "0")}</span>{group.title}</legend>
+              <p className="form-group-description">{group.description}</p>
               <div className="field-grid">
-                {group.fields.map((field) => {
-                  const options = OPTIONS[field];
-                  const isNumber = field === "tenure" || field === "monthly_charges" || field === "total_charges";
-                  const isDependencyDisabled =
-                    (field === "multiple_lines" && values.phone_service === "No") ||
-                    (INTERNET_ADD_ON_FIELDS.includes(field) && values.internet_service === "No");
-                  const dependencyHint = field === "multiple_lines"
-                    ? "Unavailable without phone service."
-                    : "Unavailable without internet service.";
-                  const describedBy = [
-                    errors[field] ? `${field}-error` : "",
-                    isDependencyDisabled ? `${field}-disabled-hint` : "",
-                  ].filter(Boolean).join(" ") || undefined;
-                  return (
-                    <label className={`form-field${isDependencyDisabled ? " form-field-disabled" : ""}`} key={field} htmlFor={field}>
-                      <span>{FIELD_LABELS[field]} <span aria-hidden="true">*</span></span>
-                      {options ? (
-                        <select id={field} aria-label={FIELD_LABELS[field]} value={values[field]} disabled={isDependencyDisabled} aria-invalid={Boolean(errors[field])} aria-describedby={describedBy} onChange={(event) => handleChange(field, event.target.value)}>
-                          {options.map((option) => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      ) : (
-                        <input id={field} aria-label={FIELD_LABELS[field]} type={isNumber ? "number" : "text"} inputMode={field === "tenure" ? "numeric" : isNumber ? "decimal" : undefined} min={isNumber ? 0 : undefined} step={field === "tenure" ? 1 : "any"} value={values[field]} readOnly={mode === "update" && field === "customer_id"} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-error` : undefined} onChange={(event) => handleChange(field, event.target.value)} />
-                      )}
-                      {isDependencyDisabled && <small id={`${field}-disabled-hint`} className="field-hint">{dependencyHint}</small>}
-                      {errors[field] && <small id={`${field}-error`} className="field-error">{errors[field]}</small>}
-                    </label>
-                  );
-                })}
+                {group.fields.map((field) => <CustomerField key={field} field={field} values={values} error={errors[field]} changed={mode === "update" && changedFields.includes(field)} mode={mode} onChange={handleChange} />)}
               </div>
             </fieldset>
           ))}
         </div>
-        <div className="form-actions">
-          <button type="submit" disabled={busy !== null}>{busy === "preview" ? "Preparing preview…" : "Preview model score"}</button>
-          <Link className="button-link button-secondary" to={mode === "update" ? `/customers/${encodeURIComponent(customerId ?? "")}` : "/customers"}>Cancel</Link>
+        <div className="sticky-actions">
+          <p className="sticky-actions-note">{preview ? "Preview ready below — nothing is saved until you confirm." : "Previewing scores the values without saving anything."}</p>
+          <div className="button-row">
+            <Link className="button-link button-secondary" to={cancelTo}>Cancel</Link>
+            <button type="submit" disabled={busy !== null}>{busy === "preview" ? <><span className="spinner" aria-hidden="true" />Preparing preview…</> : preview ? "Refresh preview" : "Preview model score"}</button>
+          </div>
         </div>
       </form>
 
       {preview && (
-        <section className="preview-panel" aria-labelledby="preview-title">
-          <div className="preview-heading">
-            <div><p className="eyebrow">No data saved yet</p><h2 id="preview-title">Review prediction before {mode === "create" ? "creating" : "saving"}</h2></div>
-            <ModelScore prediction={preview.prediction} />
+        <section className="panel preview-panel" aria-labelledby="preview-title" ref={previewRef} tabIndex={-1}>
+          <div className="preview-grid">
+            <div className="preview-score">
+              <p className="eyebrow">No data saved yet</p>
+              <h2 id="preview-title">Review prediction before {mode === "create" ? "creating" : "saving"}</h2>
+              <ModelScore prediction={preview.prediction} size="lg" />
+              <RecommendationStatus recommended={preview.prediction.recommended_for_review} />
+              <p className="model-explanation">
+                <strong>About this score.</strong> It is a ranking signal, not a guaranteed probability. Customers at or above the {Math.round(preview.prediction.threshold * 100)}% review threshold are recommended for review; the threshold marker on the bar shows where that line sits.
+              </p>
+              <dl className="meta-list">
+                <div><dt>Model version</dt><dd>{preview.prediction.model_version}</dd></div>
+                <div><dt>Threshold policy</dt><dd>{preview.prediction.threshold_policy_version}</dd></div>
+              </dl>
+            </div>
+            <div className="preview-details">
+              <WarningList warnings={preview.warnings} />
+              {mode === "update" && (
+                <div className="change-summary">
+                  <strong>{changedFields.length ? `${changedFields.length} changed field${changedFields.length === 1 ? "" : "s"}` : "No field values changed"}</strong>
+                  {changedFields.length > 0 && (
+                    <ul aria-label="Changed fields">
+                      {changedFields.map((field) => <li key={field}><span>{FIELD_LABELS[field]}</span><span className="change-values">{String(initialCustomer?.[field])} <Icon name="arrowRight" size={14} /> {String(preview.normalized_customer[field])}</span></li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <details className="disclosure">
+                <summary>View normalized account values</summary>
+                <dl className="kv-grid">{(Object.keys(DEFAULT_CUSTOMER) as FormField[]).map((field) => <div key={field}><dt>{FIELD_LABELS[field]}</dt><dd>{String(preview.normalized_customer[field])}</dd></div>)}</dl>
+              </details>
+            </div>
           </div>
-          <p className="model-explanation"><strong>About this score.</strong> It is a ranking signal, not a guaranteed probability. The current review threshold is {Math.round(preview.prediction.threshold * 100)}%.</p>
-          <RecommendationStatusLine recommended={preview.prediction.recommended_for_review} />
-          <WarningList warnings={preview.warnings} />
-          <details className="normalized-details">
-            <summary>View normalized account values</summary>
-            <dl>{(Object.keys(DEFAULT_CUSTOMER) as FormField[]).map((field) => <div key={field}><dt>{FIELD_LABELS[field]}</dt><dd>{String(preview.normalized_customer[field])}</dd></div>)}</dl>
-          </details>
-          {mode === "update" && <div className="change-summary"><strong>{changedFields.length ? `${changedFields.length} changed field${changedFields.length === 1 ? "" : "s"}` : "No field values changed"}</strong>{changedFields.length > 0 && <ul aria-label="Changed fields">{changedFields.map((field) => <li key={field}>{FIELD_LABELS[field]}</li>)}</ul>}</div>}
-          <div className="preview-actions"><button type="button" disabled={busy !== null} onClick={handlePersist}>{busy === "persist" ? "Saving…" : mode === "create" ? "Create customer" : "Save update"}</button><button type="button" className="button-secondary" onClick={() => setPreview(null)} disabled={busy !== null}>Keep editing</button></div>
+          <div className="confirm-bar">
+            <p>{mode === "create" ? "Creating saves this customer and its first prediction snapshot." : "Saving replaces the current values and appends a new prediction snapshot."}</p>
+            <div className="button-row">
+              <button type="button" className="button-secondary" onClick={() => setPreview(null)} disabled={busy !== null}>Keep editing</button>
+              <button type="button" disabled={busy !== null} onClick={handlePersist}>{busy === "persist" ? <><span className="spinner" aria-hidden="true" />Saving…</> : mode === "create" ? "Create customer" : "Save update"}</button>
+            </div>
+          </div>
         </section>
       )}
     </section>
   );
 }
 
-function PageHeader({ mode, customerId }: { mode: FormMode; customerId?: string }) {
+function FormHeader({ mode, customerId }: { mode: FormMode; customerId?: string }) {
+  const crumbs = mode === "create"
+    ? [{ label: "Overview", to: "/" }, { label: "Customers", to: "/customers" }, { label: "New customer" }]
+    : [{ label: "Overview", to: "/" }, { label: "Customers", to: "/customers" }, { label: customerId ?? "Customer", to: `/customers/${encodeURIComponent(customerId ?? "")}` }, { label: "Update" }];
   return (
-    <div className="page-heading">
-      <p className="eyebrow">Customer records</p>
-      <h1 id={mode === "create" ? "new-title" : "update-title"}>{mode === "create" ? "New customer" : "Update customer"}</h1>
-      <p className="page-description">{mode === "create" ? "Enter the account facts, preview the score, then explicitly save the new record." : `Review and re-score ${customerId ?? "this customer"} with the latest account facts.`}</p>
-    </div>
+    <PageHeader
+      titleId={mode === "create" ? "new-title" : "update-title"}
+      crumbs={crumbs}
+      eyebrow="Customer records"
+      title={mode === "create" ? "New customer" : "Update customer"}
+      description={mode === "create" ? "Enter the account facts, preview the model score, then explicitly save the new record." : <>Review and re-score <strong className="record-id">{customerId ?? "this customer"}</strong> with the latest account facts.</>}
+    />
   );
-}
-
-function RecommendationStatusLine({ recommended }: { recommended: boolean }) {
-  return recommended
-    ? <p className="recommendation-line"><span aria-hidden="true">●</span> Recommended for review at the current threshold.</p>
-    : <p className="recommendation-line recommendation-line-muted"><span aria-hidden="true">○</span> Below the current review threshold.</p>;
 }

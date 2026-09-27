@@ -1,53 +1,95 @@
+/*
+ * Design tokens — e& Egypt Dark design system, adapted for an operations tool.
+ * Brand colours, type scale, radii and shadows come from the system; the
+ * semantic status colours (success/warning/info) are application additions
+ * chosen to meet 4.5:1 on every surface.
+ */
 :root {
-  /* e&-inspired product tokens. These are application values, not a claim of
-     official brand standards or licensed e& typography. */
-  --color-canvas: oklch(0.967 0.008 65);
-  --color-canvas-deep: oklch(0.937 0.011 65);
-  --color-surface: oklch(0.992 0.004 65);
-  --color-surface-raised: oklch(1 0 0);
-  --color-ink: oklch(0.19 0.038 305);
-  --color-ink-soft: oklch(0.28 0.026 305);
-  --color-muted: oklch(0.46 0.018 305);
-  --color-border: oklch(0.84 0.012 305);
-  --color-border-strong: oklch(0.7 0.018 305);
-  --color-nav: oklch(0.17 0.042 305);
-  --color-nav-muted: oklch(0.77 0.018 305);
-  --color-accent: oklch(0.58 0.235 29);
-  --color-accent-dark: oklch(0.47 0.19 29);
-  --color-accent-soft: oklch(0.94 0.042 29);
-  --color-success: oklch(0.47 0.105 155);
-  --color-success-soft: oklch(0.94 0.03 155);
-  --color-warning: oklch(0.55 0.12 72);
-  --color-warning-soft: oklch(0.95 0.035 72);
-  --color-focus: oklch(0.72 0.16 235);
+  color-scheme: dark;
 
-  --font-display: "Archivo Variable", "Arial Narrow", sans-serif;
-  --font-body: "Figtree Variable", Calibri, sans-serif;
+  /* Brand */
+  --red: #e00800;
+  --red-press: #c40700;
+  --red-text: #ff5f54;
+  --red-chip: rgba(224, 8, 0, 0.2);
+  --gold: #c6a25b;
+  --maroon: #4b0f1e;
+  --beige: #e6e6dc;
+  --white: #ffffff;
+  --on-red: #ffffff;
 
-  --text-xs: 0.78rem;
-  --text-sm: 0.91rem;
-  --text-base: 1rem;
-  --text-lg: 1.2rem;
-  --text-xl: 1.6rem;
-  --text-2xl: 2.2rem;
+  /* Surfaces — warm near-blacks carrying a trace of maroon */
+  --surface-base: #0e0a0b;
+  --surface-raised: #181213;
+  --surface-overlay: #241b1c;
+  --surface-sunken: #120d0e;
+  --line: #3a2e30;
+  --line-strong: #7a6a6c;
 
-  --space-2xs: 0.25rem;
-  --space-xs: 0.5rem;
-  --space-sm: 0.75rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
-  --space-2xl: 3rem;
-  --space-3xl: 4rem;
-  --space-4xl: 6rem;
+  /* Text */
+  --ink: #f3f1ea;
+  --ink-muted: #b9b3aa;
+  --ink-subtle: #8f8880;
 
-  --radius-xs: 0.35rem;
-  --radius-sm: 0.55rem;
-  --radius-md: 0.9rem;
-  --radius-lg: 1.35rem;
-  --shadow-sm: 0 0.5rem 1.5rem color-mix(in oklch, var(--color-nav) 7%, transparent);
-  --shadow-md: 0 1.25rem 3rem color-mix(in oklch, var(--color-nav) 10%, transparent);
-  --content-width: 86rem;
+  /* Semantic states (application additions) */
+  --success: #6fd3a0;
+  --success-ground: rgba(111, 211, 160, 0.12);
+  --success-line: rgba(111, 211, 160, 0.42);
+  --warning: #e3bd72;
+  --warning-ground: rgba(198, 162, 91, 0.14);
+  --warning-line: rgba(198, 162, 91, 0.5);
+  --danger: var(--red-text);
+  --danger-ground: rgba(224, 8, 0, 0.14);
+  --danger-line: rgba(255, 95, 84, 0.5);
+  --info: #a9c7ff;
+  --info-ground: rgba(169, 199, 255, 0.1);
+  --info-line: rgba(169, 199, 255, 0.38);
+  --neutral-ground: rgba(243, 241, 234, 0.06);
+  --neutral-line: rgba(243, 241, 234, 0.16);
+
+  --focus: var(--white);
+
+  /* Type */
+  --font-sans: "Suisse Intl", "Suisseintel", "Hanken Grotesk Variable", "Hanken Grotesk", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+  --text-2xs: 0.75rem;   /* 12 article-text */
+  --text-xs: 0.8125rem;  /* 13 */
+  --text-sm: 0.875rem;   /* 14 small */
+  --text-base: 1rem;     /* 16 body */
+  --text-md: 1.125rem;   /* 18 price-unit / footer-heading */
+  --text-lg: 1.25rem;    /* 20 article-title */
+  --text-xl: 1.5rem;     /* 24 card-title */
+  --text-2xl: 1.875rem;  /* 30 section-title */
+  --text-3xl: 2.1875rem; /* 35 plan-name */
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-title: 30px;
+  --space-8: 40px;
+  --space-footer: 50px;
+  --space-section: 64px;
+
+  /* Shape — leaf cards round three corners and keep one tip */
+  --radius-xs: 4px;
+  --radius-sm: 10px;
+  --radius-tip: 12px;
+  --radius-md: 20px;
+  --radius-lg: 24px;
+  --radius-xl: 40px;
+  --radius-pill: 999px;
+  --leaf-md: var(--radius-md) var(--radius-xs) var(--radius-md) var(--radius-md);
+  --leaf-lg: var(--radius-lg) var(--radius-tip) var(--radius-lg) var(--radius-lg);
+
+  --shadow-card: 0 0 0 1px rgba(243, 241, 234, 0.06), 0 0 9px rgba(0, 0, 0, 0.6);
+  --shadow-raise: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  --content-width: 88rem;
   --reading-width: 68ch;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --header-height: 68px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }

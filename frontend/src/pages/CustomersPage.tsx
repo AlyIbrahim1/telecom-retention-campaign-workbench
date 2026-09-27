@@ -2,49 +2,30 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { listCustomers, type CustomerListItem, type ListQuery } from "../api/customers";
-import { ErrorState, formatAmount, formatDate, RecommendationStatus } from "../features/customers/CustomerBits";
+import { listCustomers, type ListQuery } from "../api/customers";
+import {
+  EmptyState,
+  Icon,
+  LoadingState,
+  PageHeader,
+  Pagination,
+  ErrorState,
+  formatAmount,
+  formatDate,
+  RecommendationStatus,
+  ScoreMeter,
+} from "../components/index";
+import { SortButton, ariaSort } from "../components/molecules/customers/SortButton";
 
 const PAGE_SIZES = [25, 50, 100] as const;
 type SortField = ListQuery["sort"];
 
-function ListScore({ item }: { item: CustomerListItem }) {
-  if (item.risk_score === null || item.risk_score === undefined) {
-    return <span className="score-missing">No score yet</span>;
-  }
-  return (
-    <span className="score-wrap">
-      <strong className="score-value">{Math.round(item.risk_score * 100)}%</strong>
-      <span className="score-label">Model score</span>
-    </span>
-  );
-}
-
-function SortButton({
-  label,
-  field,
-  active,
-  order,
-  onSort,
-}: {
-  label: string;
-  field: SortField;
-  active: boolean;
-  order: ListQuery["order"];
-  onSort: (field: SortField) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="table-sort"
-      aria-label={`Sort by ${label}`}
-      aria-pressed={active}
-      onClick={() => onSort(field)}
-    >
-      {label} <span aria-hidden="true">{active ? (order === "asc" ? "↑" : "↓") : "↕"}</span>
-    </button>
-  );
-}
+const FILTER_LABELS: Record<string, Record<string, string>> = {
+  recommended: { true: "Recommended for review", false: "Below review threshold" },
+  score_freshness: { fresh: "Scored", missing: "Not scored" },
+  outreach_status: { none: "No outreach recorded" },
+  is_active: { true: "Active", false: "Inactive" },
+};
 
 export function CustomersPage() {
   const [search, setSearch] = useState("");
@@ -58,6 +39,7 @@ export function CustomersPage() {
   const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
   const [sort, setSort] = useState<SortField>("last_scored_at");
   const [order, setOrder] = useState<ListQuery["order"]>("desc");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const query: ListQuery = {
     page,
@@ -106,9 +88,20 @@ export function CustomersPage() {
     setPage(1);
   }
 
+  const activeChips: Array<{ key: string; label: string; clear: () => void }> = [
+    search.trim() ? { key: "search", label: `ID contains “${search.trim()}”`, clear: () => { setSearch(""); setPage(1); } } : null,
+    recommended ? { key: "recommended", label: FILTER_LABELS.recommended[recommended], clear: () => updateFilter(setRecommended, "") } : null,
+    contract ? { key: "contract", label: contract, clear: () => updateFilter(setContract, "") } : null,
+    internetService ? { key: "internet", label: internetService === "No" ? "No internet service" : internetService, clear: () => updateFilter(setInternetService, "") } : null,
+    freshness ? { key: "freshness", label: FILTER_LABELS.score_freshness[freshness], clear: () => updateFilter(setFreshness, "") } : null,
+    outreachStatus ? { key: "outreach", label: FILTER_LABELS.outreach_status[outreachStatus] ?? outreachStatus, clear: () => updateFilter(setOutreachStatus, "") } : null,
+    isActive ? { key: "active", label: FILTER_LABELS.is_active[isActive], clear: () => updateFilter(setIsActive, "") } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
+
   const data = customers.data;
-  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
-  const hasFilters = Boolean(search || recommended || contract || internetService || freshness || outreachStatus || isActive);
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = activeChips.length > 0;
 
   // Keep the existing table and controls mounted while a filter query is
   // refreshing. Unmounting the search field on every keystroke would drop
@@ -116,8 +109,8 @@ export function CustomersPage() {
   if (customers.isPending && !customers.data) {
     return (
       <section className="page-stack" aria-labelledby="customers-title">
-        <PageHeader />
-        <div className="loading-panel" role="status">Loading customer records…</div>
+        <CustomersHeader />
+        <div className="panel"><LoadingState label="Loading customer records…" rows={6} /></div>
       </section>
     );
   }
@@ -128,71 +121,96 @@ export function CustomersPage() {
 
   return (
     <section className="page-stack" aria-labelledby="customers-title">
-      <PageHeader />
-      <div className="customer-toolbar" aria-label="Customer list filters">
-        <label className="search-field">
-          <span>Search customer ID</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-            placeholder="e.g. APP-DEMO-001"
-          />
-        </label>
-        <label>
-          <span>Review status</span>
-          <select value={recommended ?? ""} onChange={(event) => updateFilter(setRecommended, event.target.value as "true" | "false")}>
-            <option value="">All statuses</option>
-            <option value="true">Recommended for review</option>
-            <option value="false">Below review threshold</option>
-          </select>
-        </label>
-        <label>
-          <span>Contract</span>
-          <select value={contract ?? ""} onChange={(event) => updateFilter(setContract, event.target.value)}>
-            <option value="">All contracts</option>
-            <option value="Month-to-month">Month-to-month</option>
-            <option value="One year">One year</option>
-            <option value="Two year">Two year</option>
-          </select>
-        </label>
-        <label>
-          <span>Internet</span>
-          <select value={internetService ?? ""} onChange={(event) => updateFilter(setInternetService, event.target.value)}>
-            <option value="">All services</option>
-            <option value="DSL">DSL</option>
-            <option value="Fiber optic">Fiber optic</option>
-            <option value="No">No internet service</option>
-          </select>
-        </label>
-        <label>
-          <span>Score freshness</span>
-          <select value={freshness ?? ""} onChange={(event) => updateFilter(setFreshness, event.target.value)}>
-            <option value="">Any score state</option>
-            <option value="fresh">Scored</option>
-            <option value="missing">Not scored</option>
-          </select>
-        </label>
-        <label>
-          <span>Outreach status</span>
-          <select value={outreachStatus ?? ""} onChange={(event) => updateFilter(setOutreachStatus, event.target.value)}>
-            <option value="">Any outreach state</option>
-            <option value="none">No outreach recorded</option>
-          </select>
-        </label>
-        <label>
-          <span>Account state</span>
-          <select value={isActive ?? ""} onChange={(event) => updateFilter(setIsActive, event.target.value)}>
-            <option value="">All records</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-        </label>
+      <CustomersHeader />
+
+      <div className="panel filter-panel">
+        <div className={`filter-grid${filtersOpen ? " filters-open" : ""}`} role="group" aria-label="Customer list filters" id="customer-filters">
+          <label className="field search-field">
+            <span className="field-label">Search customer ID</span>
+            <span className="input-with-icon">
+              <Icon name="search" size={18} />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                placeholder="e.g. 7590-VHVEG"
+                autoComplete="off"
+              />
+            </span>
+          </label>
+          <button type="button" className="button-secondary button-small filter-toggle" aria-expanded={filtersOpen} aria-controls="customer-filters" onClick={() => setFiltersOpen((open) => !open)}>
+            <Icon name="chevronDown" size={16} />{filtersOpen ? "Hide filters" : "Show filters"}{activeChips.filter((chip) => chip.key !== "search").length ? ` (${activeChips.filter((chip) => chip.key !== "search").length} active)` : ""}
+          </button>
+          <label className="field">
+            <span className="field-label">Review recommendation</span>
+            <select value={recommended ?? ""} onChange={(event) => updateFilter(setRecommended, event.target.value as "true" | "false")}>
+              <option value="">All statuses</option>
+              <option value="true">Recommended for review</option>
+              <option value="false">Below review threshold</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Contract</span>
+            <select value={contract ?? ""} onChange={(event) => updateFilter(setContract, event.target.value)}>
+              <option value="">All contracts</option>
+              <option value="Month-to-month">Month-to-month</option>
+              <option value="One year">One year</option>
+              <option value="Two year">Two year</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Internet service</span>
+            <select value={internetService ?? ""} onChange={(event) => updateFilter(setInternetService, event.target.value)}>
+              <option value="">All services</option>
+              <option value="DSL">DSL</option>
+              <option value="Fiber optic">Fiber optic</option>
+              <option value="No">No internet service</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Score freshness</span>
+            <select value={freshness ?? ""} onChange={(event) => updateFilter(setFreshness, event.target.value)}>
+              <option value="">Any score state</option>
+              <option value="fresh">Scored</option>
+              <option value="missing">Not scored</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Outreach state</span>
+            <select value={outreachStatus ?? ""} onChange={(event) => updateFilter(setOutreachStatus, event.target.value)}>
+              <option value="">Any outreach state</option>
+              <option value="none">No outreach recorded</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Account state</span>
+            <select value={isActive ?? ""} onChange={(event) => updateFilter(setIsActive, event.target.value)}>
+              <option value="">Active and inactive</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </label>
+        </div>
+        {hasFilters && (
+          <div className="chip-row" aria-label="Active filters">
+            <span className="chip-row-label">Active filters</span>
+            {activeChips.map((chip) => (
+              <button key={chip.key} type="button" className="filter-chip" onClick={chip.clear}>
+                {chip.label}
+                <Icon name="x" size={14} />
+                <span className="sr-only"> — remove filter</span>
+              </button>
+            ))}
+            <button type="button" className="text-button" onClick={clearFilters}>Clear filters</button>
+          </div>
+        )}
       </div>
 
-      <div className="list-summary">
-        <p role="status"><strong>{data?.total ?? 0}</strong> matching customer{data?.total === 1 ? "" : "s"}</p>
-        {hasFilters && <button type="button" className="text-button" onClick={clearFilters}>Clear filters</button>}
+      <div className="list-toolbar">
+        <p role="status" className="result-count">
+          <strong>{total.toLocaleString()}</strong> matching customer{total === 1 ? "" : "s"}
+          {customers.isFetching && <span className="inline-loading"><span className="spinner" aria-hidden="true" />Updating</span>}
+        </p>
         <label className="page-size">
           <span>Rows per page</span>
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value) as 25 | 50 | 100); setPage(1); }}>
@@ -202,71 +220,82 @@ export function CustomersPage() {
       </div>
 
       {data?.items.length === 0 ? (
-        <div className="empty-panel">
-          <p className="eyebrow">No records to show</p>
-          <h2>{hasFilters ? "No customers match these filters" : "Your customer list is empty"}</h2>
-          <p>{hasFilters ? "Clear a filter or search for another customer ID." : "Create the first customer to generate a model score."}</p>
-          <div className="state-actions">
-            {hasFilters && <button type="button" className="button-secondary" onClick={clearFilters}>Clear filters</button>}
-            {!hasFilters && <Link className="button-link" to="/customers/new">Create customer</Link>}
-          </div>
+        <div className="panel">
+          <EmptyState
+            icon={hasFilters ? "search" : "users"}
+            eyebrow="No records to show"
+            title={hasFilters ? "No customers match these filters" : "Your customer list is empty"}
+            actions={
+              <>
+                {hasFilters && <button type="button" className="button-secondary" onClick={clearFilters}>Clear filters</button>}
+                {!hasFilters && <Link className="button-link" to="/customers/new">Create customer</Link>}
+                {!hasFilters && <Link className="button-link button-secondary" to="/imports/new">Import a CSV</Link>}
+              </>
+            }
+          >
+            <p>{hasFilters ? "Clear a filter or search for another customer ID." : "Create the first customer or import a CSV to generate model scores."}</p>
+          </EmptyState>
         </div>
       ) : (
-        <div className="table-scroll">
-          <table className="customer-table">
-            <caption className="sr-only">Customer records and current model scores</caption>
-            <thead>
-              <tr>
-                <th scope="col" aria-sort={sort === "customer_id" ? (order === "asc" ? "ascending" : "descending") : "none"}><SortButton label="Customer ID" field="customer_id" active={sort === "customer_id"} order={order} onSort={handleSort} /></th>
-                <th scope="col">Contract / service</th>
-                <th scope="col">Tenure</th>
-                <th scope="col" aria-sort={sort === "monthly_charges" ? (order === "asc" ? "ascending" : "descending") : "none"}><SortButton label="Monthly charges" field="monthly_charges" active={sort === "monthly_charges"} order={order} onSort={handleSort} /></th>
-                <th scope="col" aria-sort={sort === "total_charges" ? (order === "asc" ? "ascending" : "descending") : "none"}><SortButton label="Total charges" field="total_charges" active={sort === "total_charges"} order={order} onSort={handleSort} /></th>
-                <th scope="col" aria-sort={sort === "risk_score" ? (order === "asc" ? "ascending" : "descending") : "none"}><SortButton label="Model score" field="risk_score" active={sort === "risk_score"} order={order} onSort={handleSort} /></th>
-                <th scope="col">Review status</th>
-                <th scope="col">Outreach status</th>
-                <th scope="col" aria-sort={sort === "last_scored_at" ? (order === "asc" ? "ascending" : "descending") : "none"}><SortButton label="Last scored" field="last_scored_at" active={sort === "last_scored_at"} order={order} onSort={handleSort} /></th>
-                <th scope="col"><span className="sr-only">Open</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.items.map((item) => (
-                <tr key={item.customer_id}>
-                  <th scope="row" data-label="Customer ID"><Link to={`/customers/${encodeURIComponent(item.customer_id)}`}>{item.customer_id}</Link></th>
-                  <td data-label="Contract / service"><strong>{item.contract}</strong><span className="cell-note">{item.internet_service}</span></td>
-                  <td data-label="Tenure">{item.tenure} months</td>
-                  <td data-label="Monthly charges">{formatAmount(item.monthly_charges)}</td>
-                  <td data-label="Total charges">{formatAmount(item.total_charges)}</td>
-                  <td data-label="Model score"><ListScore item={item} /></td>
-                  <td data-label="Review status"><RecommendationStatus recommended={item.recommended_for_review} /></td>
-                  <td data-label="Outreach status"><span className="status status-muted">{item.outreach_status || "No outreach record"}</span></td>
-                  <td data-label="Last scored">{formatDate(item.last_scored_at)}</td>
-                  <td data-label="Open"><Link className="row-action" to={`/customers/${encodeURIComponent(item.customer_id)}`}>Open<span className="sr-only"> {item.customer_id}</span></Link></td>
+        <div className={`table-frame${customers.isFetching ? " table-frame-busy" : ""}`}>
+          <div className="table-scroll" tabIndex={0} role="region" aria-label="Customer records table">
+            <table className="data-table customer-table">
+              <caption className="sr-only">Customer records and current model scores</caption>
+              <thead>
+                <tr>
+                  <th scope="col" aria-sort={ariaSort(sort === "customer_id", order)}><SortButton label="Customer ID" field="customer_id" active={sort === "customer_id"} order={order} onSort={handleSort} /></th>
+                  <th scope="col">Contract / service</th>
+                  <th scope="col" className="num">Tenure</th>
+                  <th scope="col" className="num" aria-sort={ariaSort(sort === "monthly_charges", order)}><SortButton label="Monthly charges" field="monthly_charges" active={sort === "monthly_charges"} order={order} onSort={handleSort} /></th>
+                  <th scope="col" className="num" aria-sort={ariaSort(sort === "total_charges", order)}><SortButton label="Total charges" field="total_charges" active={sort === "total_charges"} order={order} onSort={handleSort} /></th>
+                  <th scope="col" aria-sort={ariaSort(sort === "risk_score", order)}><SortButton label="Model score" field="risk_score" active={sort === "risk_score"} order={order} onSort={handleSort} /></th>
+                  <th scope="col">Review status</th>
+                  <th scope="col">Outreach status</th>
+                  <th scope="col" aria-sort={ariaSort(sort === "last_scored_at", order)}><SortButton label="Last scored" field="last_scored_at" active={sort === "last_scored_at"} order={order} onSort={handleSort} /></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data?.items.map((item) => (
+                  <tr key={item.customer_id} className={item.is_active ? undefined : "row-muted"}>
+                    <th scope="row" data-label="Customer ID">
+                      <Link className="record-link" to={`/customers/${encodeURIComponent(item.customer_id)}`}>{item.customer_id}</Link>
+                      {!item.is_active && <span className="cell-note">Inactive</span>}
+                    </th>
+                    <td data-label="Contract / service"><span className="cell-primary">{item.contract}</span><span className="cell-note">{item.internet_service === "No" ? "No internet" : item.internet_service}</span></td>
+                    <td data-label="Tenure" className="num">{item.tenure} <span className="cell-unit">mo</span></td>
+                    <td data-label="Monthly charges" className="num">{formatAmount(item.monthly_charges)}</td>
+                    <td data-label="Total charges" className="num">{formatAmount(item.total_charges)}</td>
+                    <td data-label="Model score"><ScoreMeter score={item.risk_score} threshold={item.current_prediction?.threshold} /></td>
+                    <td data-label="Review status"><RecommendationStatus recommended={item.recommended_for_review} /></td>
+                    <td data-label="Outreach status"><span className="cell-muted">{item.outreach_status || "No outreach record"}</span></td>
+                    <td data-label="Last scored" className="cell-date">{formatDate(item.last_scored_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      <nav className="pagination" aria-label="Customer results pages">
-        <button type="button" className="button-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
-        <span aria-live="polite">Page {page} of {pageCount}</span>
-        <button type="button" className="button-secondary" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>Next</button>
-      </nav>
+      <Pagination label="Customer results pages" page={page} pageCount={pageCount} onPage={setPage} total={total} pageSize={pageSize} itemLabel="customers" />
     </section>
   );
 }
 
-function PageHeader() {
+function CustomersHeader() {
   return (
-    <div className="page-heading page-heading-action">
-      <div>
-        <p className="eyebrow">Customer records</p>
-        <h1 id="customers-title">Customers</h1>
-        <p className="page-description">Find a record, understand its model score, and open the facts before taking action.</p>
-      </div>
-      <Link className="button-link" to="/customers/new">Create customer</Link>
-    </div>
+    <PageHeader
+      titleId="customers-title"
+      crumbs={[{ label: "Overview", to: "/" }, { label: "Customers" }]}
+      eyebrow="Customer records"
+      title="Customers"
+      description="Find a record, understand its model score, and open the stored facts before taking action."
+      actions={
+        <>
+          <Link className="button-link button-secondary" to="/imports/new"><Icon name="upload" size={18} />Import CSV</Link>
+          <Link className="button-link" to="/customers/new"><Icon name="plus" size={18} />Create customer</Link>
+        </>
+      }
+    />
   );
 }
