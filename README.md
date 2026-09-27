@@ -11,9 +11,12 @@ not make outreach decisions or claim to predict the future with certainty.
 
 This is a local internship demonstration, not a deployed production service. It has no authentication or real outreach delivery.
 
+![Retention Campaign Workbench application preview](.github/assets/preview.png)
 
 ## What you can do
 
+- Explore the overview dashboard for customer mix, charges, tenure, and
+  model-predicted churn.
 - Review customers and their churn-risk history.
 - Create or update individual customer records and score them with the bundled
   Random Forest model.
@@ -25,7 +28,7 @@ This is a local internship demonstration, not a deployed production service. It 
 - Record simulated contact outcomes for a confirmed campaign, inspect the
   audit history, export the outreach queue, and view an illustrative financial
   estimate based on explicit campaign assumptions.
-- Optionally use the chat workspace for customer lookup and **staged**
+- Optionally use the assistant side panel for customer lookup and **staged**
   single-customer writes. Every write has a structured preview, confirmation
   token, and idempotency key.
 
@@ -116,8 +119,8 @@ The rest of the workbench works without an API key. To enable chat, set
 `OPENAI_API_KEY` in `.env` and restart the API. For OpenRouter, also set
 `OPENAI_BASE_URL=https://openrouter.ai/api/v1` and choose an OpenRouter model,
 for example `OPENAI_MODEL=openai/gpt-4o-mini`. When it is not configured, the
-chat area reports that safely and the customer, import, and campaign workflows
-remain available.
+assistant panel explains that it is unavailable; customer, import, and campaign
+workflows remain available.
 
 ## Tests
 
@@ -139,17 +142,20 @@ npm --prefix frontend run build
 ## Project layout
 
 - `backend/` — FastAPI service, database models, migrations, and API tests.
-- `frontend/` — React application for customer, import, campaign, and chat
-  workflows.
+- `frontend/` — React application for customer, import, campaign, and assistant
+  workflows. Its components follow atoms, molecules, organisms, templates, and
+  pages (see [component structure](frontend/src/components/README.md)).
 - `models/` — the trusted, exported Joblib model bundle mounted read-only by
   the API.
 - `scripts/seed_demo.py` — optional local demo-data seeder.
 - `data/raw/` — source CSV used by the notebooks and demo-data seeder.
 - `notebooks/eda.ipynb` — data quality checks and exploratory analysis.
 - `notebooks/model_selection.ipynb` — independent model comparison and export
-  of the bundle in `models/`.
+  of a candidate bundle under `models/candidates/`.
 
 Open either notebook from the repository root or the `notebooks/` directory.
 Run `eda.ipynb` for the exploratory analysis, then run
-`model_selection.ipynb` to reproduce the exported model. Each notebook loads
-the source CSV independently.
+`model_selection.ipynb` to reproduce model selection and export a candidate.
+Each notebook loads the source CSV independently. Promoting a candidate to the
+trusted bundle in `models/` requires a separate review; see
+[MODEL_CARD.md](MODEL_CARD.md).
