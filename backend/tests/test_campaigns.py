@@ -246,3 +246,71 @@ def test_confirmation_route_replays_without_duplicate_selection_or_decision_rows
     assert session.scalar(select(CampaignSelection).where(CampaignSelection.campaign_id == campaign_id)) is not None
     assert len(list(session.scalars(select(OutreachDecision).where(OutreachDecision.campaign_id == campaign_id)))) == 2
     session.close()
+
+
+def test_outreach_queue_is_audited_idempotent_and_estimates_value():
+    from uuid import uuid4
+    from backend.app.db.models import OutreachEvent
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    setup = factory()
+    _add_prediction(setup, _customer("C-1", 90, 300), 0.9)
+    _add_prediction(setup, _customer("C-2", 40, 100), 0.8)
+    campaign = Campaign(name="Outreach campaign", capacity=2, status="draft", version=1,
+                        value_horizon_months=3, contact_cost_per_customer=5)
+    setup.add(campaign)
+    setup.commit()
+    optimize_campaign(setup, campaign)
+    confirm_campaign(setup, campaign)
+    setup.commit()
+    campaign_id = campaign.id
+    selection = setup.scalar(select(CampaignSelection).where(CampaignSelection.campaign_id == campaign_id,
+                                                               CampaignSelection.customer_id == "C-1"))
+    selection_id = selection.id
+    setup.close()
+    settings = Settings(_env_file=None, app_env="test", database_url="postgresql+psycopg://test:test@localhost/test")
+    app = create_app(settings=settings, database_check=lambda: True, session_factory=factory)
+    path = f"/api/v1/campaigns/{campaign_id}/outreach"
+
+    async def calls():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            initial = await client.get(path)
+            missing_key = await client.post(f"{path}/{selection_id}/events", json={"status": "attempted"})
+            invalid_selection = await client.post(f"{path}/{uuid4()}/events", headers={"Idempotency-Key": "missing-selection"}, json={"status": "attempted"})
+            first = await client.post(f"{path}/{selection_id}/events", headers={"Idempotency-Key": "outcome-1"}, json={"status": "attempted", "note": "  Called  "})
+            replay = await client.post(f"{path}/{selection_id}/events", headers={"Idempotency-Key": "outcome-1"}, json={"status": "attempted", "note": "Called"})
+            conflict = await client.post(f"{path}/{selection_id}/events", headers={"Idempotency-Key": "outcome-1"}, json={"status": "offer_accepted"})
+            accepted = await client.post(f"{path}/{selection_id}/events", headers={"Idempotency-Key": "outcome-2"}, json={"status": "offer_accepted", "note": "=formula"})
+            queue = await client.get(path)
+            filtered = await client.get(f"{path}?status=offer_accepted&page_size=1")
+            exported = await client.get(f"/api/v1/campaigns/{campaign_id}/outreach.csv")
+            overview = await client.get("/api/v1/overview")
+            return initial, missing_key, invalid_selection, first, replay, conflict, accepted, queue, filtered, exported, overview
+
+    initial, missing_key, invalid_selection, first, replay, conflict, accepted, queue, filtered, exported, overview = asyncio.run(calls())
+    assert initial.status_code == 200 and initial.json()["summary"]["contacted"] == 0
+    assert missing_key.status_code == 400
+    assert invalid_selection.status_code == 404
+    assert first.status_code == 201 and replay.json()["event_id"] == first.json()["event_id"]
+    assert conflict.status_code == 409
+    assert accepted.status_code == 201
+    assert queue.json()["summary"] == {
+        "selected": 2, "contacted": 1, "reached": 1, "accepted": 1,
+        "value_horizon_months": 3, "contact_cost_per_customer": 5.0,
+        "associated_value": 270.0, "estimated_contact_cost": 5.0, "illustrative_net_value": 265.0,
+    }
+    assert filtered.json()["total"] == 1
+    assert [item["status"] for item in queue.json()["items"]] == ["offer_accepted", "not_started"]
+    assert "'=formula" in exported.text
+    assert overview.json()["contacts_recorded"] == 1 and overview.json()["accepted_offers"] == 1
+    with factory() as session:
+        assert len(list(session.scalars(select(OutreachEvent)))) == 2
+        campaign = session.get(Campaign, campaign_id)
+        campaign.status = "archived"
+        session.commit()
+    async def archived_call():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            return await client.post(f"{path}/{selection_id}/events", headers={"Idempotency-Key": "outcome-3"}, json={"status": "reached"})
+    assert asyncio.run(archived_call()).status_code == 409

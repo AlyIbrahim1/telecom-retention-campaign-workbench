@@ -52,6 +52,7 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
             "campaign_selections",
             "campaign_overrides",
             "outreach_decisions",
+            "outreach_events",
             "chat_sessions",
             "chat_messages",
             "chat_tool_audits",

@@ -265,6 +265,8 @@ class Campaign(Base):
     __table_args__ = (
         CheckConstraint("length(name) BETWEEN 1 AND 120", name="ck_campaign_name_length"),
         CheckConstraint("capacity > 0", name="ck_campaign_capacity_positive"),
+        CheckConstraint("value_horizon_months BETWEEN 1 AND 24", name="ck_campaign_value_horizon"),
+        CheckConstraint("contact_cost_per_customer >= 0", name="ck_campaign_contact_cost"),
         CheckConstraint("status IN ('draft', 'optimized', 'confirmed', 'archived')", name="ck_campaign_status"),
         Index("ix_campaigns_status_created_at", "status", "created_at"),
     )
@@ -272,6 +274,8 @@ class Campaign(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    value_horizon_months: Mapped[int] = mapped_column(Integer, nullable=False, default=3, server_default="3")
+    contact_cost_per_customer: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=5, server_default="5")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", server_default="draft")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
@@ -475,6 +479,36 @@ def prevent_outreach_decision_update(_mapper: Any, _connection: Any, _target: Ou
 @event.listens_for(OutreachDecision, "before_delete")
 def prevent_outreach_decision_delete(_mapper: Any, _connection: Any, _target: OutreachDecision) -> None:
     raise ValueError("Outreach decisions are immutable")
+
+
+class OutreachEvent(Base):
+    """Append-only contact outcome for one confirmed selection."""
+
+    __tablename__ = "outreach_events"
+    __table_args__ = (
+        CheckConstraint("status IN ('attempted', 'no_answer', 'reached', 'offer_accepted', 'offer_declined')", name="ck_outreach_event_status"),
+        UniqueConstraint("campaign_id", "idempotency_key", name="uq_outreach_event_idempotency"),
+        Index("ix_outreach_events_selection_created", "selection_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
+    selection_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("campaign_selections.id", ondelete="RESTRICT"), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False, default="local-demo-user")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+@event.listens_for(OutreachEvent, "before_update")
+def prevent_outreach_event_update(_mapper: Any, _connection: Any, _target: OutreachEvent) -> None:
+    raise ValueError("Outreach events are immutable")
+
+
+@event.listens_for(OutreachEvent, "before_delete")
+def prevent_outreach_event_delete(_mapper: Any, _connection: Any, _target: OutreachEvent) -> None:
+    raise ValueError("Outreach events are immutable")
 
 
 class ChatSession(Base):

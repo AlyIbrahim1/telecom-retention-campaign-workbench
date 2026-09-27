@@ -17,6 +17,8 @@ class CampaignWrite(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     capacity: int = Field(gt=0)
+    value_horizon_months: int = Field(default=3, ge=1, le=24)
+    contact_cost_per_customer: float = Field(default=5, ge=0, le=1_000_000)
 
 
 class CampaignOverrideWrite(BaseModel):
@@ -91,6 +93,8 @@ class CampaignResponse(BaseModel):
     campaign_id: UUID
     name: str
     capacity: int
+    value_horizon_months: int = 3
+    contact_cost_per_customer: float = 5
     status: CampaignStatus
     version: int
     created_at: datetime

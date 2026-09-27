@@ -49,6 +49,7 @@ def _version(value: str | None) -> int | None:
 def _summary(campaign: Campaign, *, eligible_count: int = 0, recommended_count: int = 0, selected_count: int = 0, unused_capacity: int = 0) -> CampaignResponse:
     return CampaignResponse(
         campaign_id=campaign.id, name=campaign.name, capacity=campaign.capacity,
+        value_horizon_months=campaign.value_horizon_months, contact_cost_per_customer=float(campaign.contact_cost_per_customer),
         status=campaign.status, version=campaign.version, created_at=campaign.created_at,
         updated_at=campaign.updated_at, confirmed_at=campaign.confirmed_at,
         latest_optimization_run_id=campaign.latest_optimization_run_id,
@@ -96,7 +97,8 @@ def _response(session: Session, campaign: Campaign) -> CampaignResponse:
         )
     selected_count = len(selected_ids)
     return CampaignResponse(
-        campaign_id=campaign.id, name=campaign.name, capacity=campaign.capacity, status=campaign.status, version=campaign.version,
+        campaign_id=campaign.id, name=campaign.name, capacity=campaign.capacity,
+        value_horizon_months=campaign.value_horizon_months, contact_cost_per_customer=float(campaign.contact_cost_per_customer), status=campaign.status, version=campaign.version,
         created_at=campaign.created_at, updated_at=campaign.updated_at, confirmed_at=campaign.confirmed_at,
         latest_optimization_run_id=campaign.latest_optimization_run_id, optimization=optimization,
         recommendations=recommendations, overrides=[CampaignOverrideResponse(override_id=item.id, customer_id=item.customer_id, action=item.action, reason=item.reason, replacement_customer_id=item.replacement_customer_id, created_at=item.created_at) for item in overrides],
@@ -213,7 +215,7 @@ async def create_campaign(request: Request, body: dict):
         replay = _idempotency_replay(request, session, "campaign:create", key, digest)
         if replay is not None:
             return replay
-        campaign = Campaign(name=payload.name, capacity=payload.capacity, status="draft", version=1)
+        campaign = Campaign(name=payload.name, capacity=payload.capacity, value_horizon_months=payload.value_horizon_months, contact_cost_per_customer=payload.contact_cost_per_customer, status="draft", version=1)
         session.add(campaign); session.flush()
         result = _response(session, campaign).model_dump(mode="json")
         session.add(IdempotencyRecord(scope="campaign:create", key=key, request_hash=digest, status_code=201, response_body=result))
@@ -268,7 +270,7 @@ async def update_campaign(request: Request, campaign_id: UUID, body: dict, if_ma
             return problem_response(request, status=409, code="campaign_state_conflict", title="Campaign cannot be edited", detail="Only draft campaigns can be edited.")
         if campaign.version != expected:
             return problem_response(request, status=409, code="campaign_version_conflict", title="Campaign changed", detail="Reload the campaign and apply the edit again.")
-        campaign.name = payload.name; campaign.capacity = payload.capacity; campaign.version += 1; session.commit()
+        campaign.name = payload.name; campaign.capacity = payload.capacity; campaign.value_horizon_months = payload.value_horizon_months; campaign.contact_cost_per_customer = payload.contact_cost_per_customer; campaign.version += 1; session.commit()
         return _response(session, campaign)
     except IntegrityError:
         session.rollback(); return problem_response(request, status=409, code="duplicate_campaign_name", title="Campaign name already exists", detail="Choose a different campaign name.")
