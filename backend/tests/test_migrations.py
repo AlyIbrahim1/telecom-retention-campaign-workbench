@@ -31,9 +31,17 @@ def test_fresh_postgresql_migration_up_down_up(monkeypatch):
     try:
         monkeypatch.setenv("DATABASE_URL", target_url.render_as_string(hide_password=False))
         alembic = Config("backend/alembic.ini")
+        command.upgrade(alembic, "0005_phase6")
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO campaigns (id, name, capacity, status, version, created_at, updated_at) "
+                     "VALUES (:id, 'Existing campaign', 2, 'draft', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"),
+                {"id": uuid4()},
+            )
         command.upgrade(alembic, "head")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == ScriptDirectory.from_config(alembic).get_current_head()
+            assert connection.execute(text("SELECT value_horizon_months, contact_cost_per_customer FROM campaigns WHERE name = 'Existing campaign'")).one() == (3, 5)
 
         command.downgrade(alembic, "base")
         with engine.connect() as connection:

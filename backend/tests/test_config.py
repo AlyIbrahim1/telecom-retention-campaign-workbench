@@ -11,7 +11,7 @@ BASE = {
 
 
 def test_local_no_auth_settings_are_valid():
-    settings = Settings(**BASE)
+    settings = Settings(**BASE, app_env="local", auth_enabled=False, cors_origin="http://127.0.0.1:5173")
 
     assert settings.app_env == "local"
     assert settings.auth_enabled is False

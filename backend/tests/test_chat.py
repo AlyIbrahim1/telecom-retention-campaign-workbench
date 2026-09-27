@@ -69,6 +69,7 @@ async def call(app, method: str, path: str, **kwargs):
 
 def test_chat_without_provider_key_fails_gracefully_and_persists_no_customer_write():
     app, factory = make_app()
+    app.state.settings.openai_api_key = None
     session = asyncio.run(call(app, "post", "/api/v1/chat/sessions", json={}))
     assert session.json()["ai_available"] is False
     response = asyncio.run(call(app, "post", f"/api/v1/chat/sessions/{session.json()['session_id']}/messages", json={"content": "hello"}))
