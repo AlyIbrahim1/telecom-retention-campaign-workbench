@@ -17,7 +17,7 @@ def test_docker_context_includes_seed_csv_without_virtual_environments() -> None
     if dockerignore_path.exists():
         dockerignore = dockerignore_path.read_text(encoding="utf-8").splitlines()
         assert "**/.venv" in dockerignore
-        assert "!WA_Fn-UseC_-Telco-Customer-Churn.csv" in dockerignore
+        assert "data/" not in dockerignore
 
     assert seed_demo.DEFAULT_CSV.is_file()
 

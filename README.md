@@ -131,9 +131,15 @@ npm --prefix frontend run build
 - `backend/` — FastAPI service, database models, migrations, and API tests.
 - `frontend/` — React application for customer, import, campaign, and chat
   workflows.
-- `app/` — small reference CLI for using the exported churn model directly.
 - `models/` — the trusted, exported Joblib model bundle mounted read-only by
   the API.
 - `scripts/seed_demo.py` — optional local demo-data seeder.
-- `teleco_churn_eda.ipynb` — exploratory analysis and model-training source of
-  truth.
+- `data/raw/` — source CSV used by the notebooks and demo-data seeder.
+- `notebooks/eda.ipynb` — data quality checks and exploratory analysis.
+- `notebooks/model_selection.ipynb` — independent model comparison and export
+  of the bundle in `models/`.
+
+Open either notebook from the repository root or the `notebooks/` directory.
+Run `eda.ipynb` for the exploratory analysis, then run
+`model_selection.ipynb` to reproduce the exported model. Each notebook loads
+the source CSV independently.

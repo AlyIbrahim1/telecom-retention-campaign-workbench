@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir --requirement /tmp/requirements.lock
 
 COPY backend backend
 COPY scripts scripts
-COPY WA_Fn-UseC_-Telco-Customer-Churn.csv WA_Fn-UseC_-Telco-Customer-Churn.csv
+COPY data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
 COPY models models
 COPY tests tests
 

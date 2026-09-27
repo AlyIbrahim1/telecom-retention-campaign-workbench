@@ -29,7 +29,7 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CSV = ROOT / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
+DEFAULT_CSV = ROOT / "data" / "raw" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 DEFAULT_API_URL = "http://127.0.0.1:8000"
 
 SOURCE_FIELDS = (
